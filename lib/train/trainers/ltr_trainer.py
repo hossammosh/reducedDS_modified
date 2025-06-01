@@ -68,12 +68,33 @@ class LTRTrainer(BaseTrainer):
         self._init_timing()
         print('epoch no.= ', self.epoch)
 
-        # Initialize gradient saving if enabled
+        # Get samples_stats_save_permission array and determine current permission
+        samples_stats_save_permission = getattr(self.settings, 'samples_stats_save_permission', [False, True])
+        current_epoch_idx = self.epoch - 1  # Convert to 0-based index
+        
+        # Determine if we should save stats for this epoch
+        if current_epoch_idx < len(samples_stats_save_permission):
+            should_save_stats = samples_stats_save_permission[current_epoch_idx]
+        else:
+            should_save_stats = samples_stats_save_permission[-1]  # Use last value for any additional epochs
+            
+        # Get SAVE_GRADIENTS array and determine if we should save gradients this epoch
+        save_gradients = getattr(self.settings, 'SAVE_GRADIENTS', [False, True])
+        if current_epoch_idx < len(save_gradients):
+            should_save_gradients = save_gradients[current_epoch_idx] and loader.training
+        else:
+            should_save_gradients = save_gradients[-1] and loader.training
+            
+        print(f"Epoch {self.epoch}:")
+        print(f"  - samples_stats_save_permission = {should_save_stats}")
+        print(f"  - SAVE_GRADIENTS = {should_save_gradients}")
+
+        # Initialize gradient saving if enabled for this epoch
         self._save_gradients = False
-        if getattr(self.settings, 'save_gradients', False) and loader.training:
+        if should_save_gradients:
             try:
                 self._grad_output_dir = os.path.join(self.settings.env.workspace_dir, 'gradients')
-                print(f"Gradient saving is ENABLED. Gradients will be saved to: {self._grad_output_dir}")
+                print(f"Gradient saving is ENABLED for this epoch. Gradients will be saved to: {self._grad_output_dir}")
                 self._save_gradients = True
             except Exception as e:
                 print(f"Error initializing gradient saving: {e}")
@@ -83,7 +104,7 @@ class LTRTrainer(BaseTrainer):
         self.iteration_counter = 0
 
         for i, data in enumerate(loader, 1):
-            self.iteration_counter += 1  # Increment global iteration counter
+            self.iteration_counter += 1
 
             data_info = data[1]
             sample_index = data[2]
@@ -93,30 +114,32 @@ class LTRTrainer(BaseTrainer):
                 data = data.to(self.device)
 
             data['epoch'] = self.epoch
-            data['settings'] = self.settings
-            # forward pass
-            if not self.use_amp:
-                loss, stats = self.actor(data)
-            else:
-                with autocast():
-                    loss, stats = self.actor(data)
+            data['iteration'] = i
+            data['time'] = time.time()
 
-            # ----- MODIFIED: Only log data if log_save is True -----
-            if self.log_save:
-                data_recorder.log_data(sample_index, data_info, stats)
-                # ----- Excel data logging with frequency control -----
-                log_freq = getattr(self.settings, 'log_sample_stats_interval', 10)
-                if i % log_freq == 0 or i == len(loader):
-                    print(
-                        f"Excel data logged at iteration {self.iteration_counter} (every {self.settings.log_sample_stats_interval} iterations)")
+            # Forward pass
+            loss, stats = self.actor(data)
+            
+            # Save sample statistics if enabled for this epoch
+            if should_save_stats and (i % getattr(self.settings, 'log_sample_stats_interval', 200) == 0 or i == len(loader)):
+                try:
+                    import lib.train.data_recorder as data_recorder
+                    data_recorder.samples_stats_save(
+                        sample_index=sample_index,
+                        data_info=data_info,
+                        stats=stats
+                    )
+                    print(f"Sample statistics saved at iteration {self.iteration_counter}")
+                except Exception as e:
+                    print(f"Error saving sample statistics: {e}")
 
-            # backward pass and update weights
-            if loader.training:
+            # Backward pass and parameter updates (only if not in stats saving mode)
+            if loader.training and not should_save_stats:
                 self.optimizer.zero_grad()
                 if not self.use_amp:
                     loss.backward()
                     
-                    # Save gradients if enabled (now on every iteration when _save_gradients is True)
+                    # Save gradients if enabled for this iteration
                     if self._save_gradients:
                         try:
                             import lib.train.data_recorder as data_recorder
@@ -140,46 +163,77 @@ class LTRTrainer(BaseTrainer):
 
             torch.cuda.synchronize()
 
-            # update statistics
+            # Update statistics
             batch_size = data['template_images'].shape[loader.stack_dim]
             self._update_stats(stats, batch_size, loader)
 
-            # print statistics
+            # Print statistics
             self._print_stats(i, loader, batch_size)
 
     def train_epoch(self):
-        """Do one epoch for each loader."""
         # Set the current epoch in the data recorder at the beginning of each epoch
-        if self.log_save:
+        samples_stats_save_permission = getattr(self.settings, 'samples_stats_save_permission', [False, True])
+        current_epoch_idx = self.epoch - 1  # Convert to 0-based index
+        should_save_stats = samples_stats_save_permission[min(current_epoch_idx, len(samples_stats_save_permission) - 1)]
+        
+        if should_save_stats:
             data_recorder.set_epoch(self.epoch)
 
         for loader in self.loaders:
-            if self.epoch % loader.epoch_interval == 0:
-                # 2021.1.10 Set epoch
-                if isinstance(loader.sampler, DistributedSampler):
-                    loader.sampler.set_epoch(self.epoch)
-                self.cycle_dataset(loader)
+            self.cycle_dataset(loader)
 
+        self._stats_new_epoch()
+
+    def _stats_new_epoch(self):
         # Finalize data recording for the current epoch (save remaining buffer, merge chunks)
         # Ensure this runs only on the main process to avoid race conditions during merge
-        if self.log_save and self.settings.local_rank in [-1, 0]:
+        samples_stats_save_permission = getattr(self.settings, 'samples_stats_save_permission', [False, True])
+        current_epoch_idx = self.epoch - 1  # Convert to 0-based index
+        should_save_stats = samples_stats_save_permission[min(current_epoch_idx, len(samples_stats_save_permission) - 1)]
+        
+        if should_save_stats and self.settings.local_rank in [-1, 0]:
             print(f"--- ltr_trainer: Finalizing data recording for epoch {self.epoch} ---")
             data_recorder.finalize_epoch(self.epoch)
             print(f"--- ltr_trainer: Data recording finalized for epoch {self.epoch} ---")
 
-        self._stats_new_epoch()  # Now reset stats for the next epoch
-        if self.settings.local_rank in [-1, 0]:
-            self._write_tensorboard()
+        # Record learning rate
+        for loader in self.loaders:
+            if loader.training:
+                try:
+                    # Correct way to get LR in newer PyTorch versions
+                    lr_list = [param_group['lr'] for param_group in self.optimizer.param_groups]
+                except AttributeError:
+                    # Fallback for older versions or different schedulers
+                    try:
+                        lr_list = self.lr_scheduler.get_lr()
+                    except AttributeError:
+                        # Handle cases where scheduler might not have get_lr or _get_lr
+                        try:
+                            lr_list = self.lr_scheduler._get_lr(self.epoch)
+                        except Exception as e:
+                            print(f"Could not retrieve learning rate: {e}")
+                            lr_list = [self.optimizer.param_groups[0]['lr']]  # Default to first group LR
 
-            # ----- Modification Start: Save Checkpoint Conditionally -----
-            # Save checkpoint only for the first 10 epochs as requested for the initial stage
-            if self.epoch <= 10:
-                checkpoint_path = os.path.join(self.checkpoint_dir, f"checkpoint_epoch_{self.epoch}.pt")
-                print(f"--- ltr_trainer: Attempting to save checkpoint for epoch {self.epoch} to {checkpoint_path} ---")
-                # Save the network's state_dict (all parameters)
-                torch.save(self.actor.net.state_dict(), checkpoint_path)
-                print(f"--- ltr_trainer: Successfully saved checkpoint for epoch {self.epoch} to {checkpoint_path} ---")
-            # ----- Modification End: Save Checkpoint Conditionally -----
+                for i, lr in enumerate(lr_list):
+                    var_name = 'LearningRate/group{}'.format(i)
+                    if loader.name not in self.stats or self.stats[loader.name] is None:
+                        self.stats[loader.name] = OrderedDict()
+                    if var_name not in self.stats[loader.name].keys():
+                        self.stats[loader.name][var_name] = StatValue()
+                    self.stats[loader.name][var_name].update(lr)
+
+        for loader_stats in self.stats.values():
+            if loader_stats is None:
+                continue
+            for stat_value in loader_stats.values():
+                if hasattr(stat_value, 'new_epoch'):
+                    stat_value.new_epoch()
+
+    def _write_tensorboard(self):
+        if self.epoch == 1:
+            self.tensorboard_writer.write_info(self.settings.script_name, self.settings.description)
+
+        self.tensorboard_writer.write_epoch(self.stats, self.epoch)
 
     def _init_timing(self):
         self.num_frames = 0
@@ -282,42 +336,18 @@ class LTRTrainer(BaseTrainer):
                 else:
                     print("Log file path not configured in settings.")
 
-    def _stats_new_epoch(self):
-        # Record learning rate
-        for loader in self.loaders:
-            if loader.training:
-                try:
-                    # Correct way to get LR in newer PyTorch versions
-                    lr_list = [param_group['lr'] for param_group in self.optimizer.param_groups]
-                except AttributeError:
-                    # Fallback for older versions or different schedulers
-                    try:
-                        lr_list = self.lr_scheduler.get_lr()
-                    except AttributeError:
-                        # Handle cases where scheduler might not have get_lr or _get_lr
-                        try:
-                            lr_list = self.lr_scheduler._get_lr(self.epoch)
-                        except Exception as e:
-                            print(f"Could not retrieve learning rate: {e}")
-                            lr_list = [self.optimizer.param_groups[0]['lr']]  # Default to first group LR
-
-                for i, lr in enumerate(lr_list):
-                    var_name = 'LearningRate/group{}'.format(i)
-                    if loader.name not in self.stats or self.stats[loader.name] is None:
-                        self.stats[loader.name] = OrderedDict()
-                    if var_name not in self.stats[loader.name].keys():
-                        self.stats[loader.name][var_name] = StatValue()
-                    self.stats[loader.name][var_name].update(lr)
-
-        for loader_stats in self.stats.values():
-            if loader_stats is None:
-                continue
-            for stat_value in loader_stats.values():
-                if hasattr(stat_value, 'new_epoch'):
-                    stat_value.new_epoch()
-
+    # ----- Modification Start: Save Checkpoint Conditionally -----
+    # Save checkpoint only for the first 10 epochs as requested for the initial stage
     def _write_tensorboard(self):
         if self.epoch == 1:
             self.tensorboard_writer.write_info(self.settings.script_name, self.settings.description)
 
         self.tensorboard_writer.write_epoch(self.stats, self.epoch)
+
+        if self.epoch <= 10:
+            checkpoint_path = os.path.join(self.checkpoint_dir, f"checkpoint_epoch_{self.epoch}.pt")
+            print(f"--- ltr_trainer: Attempting to save checkpoint for epoch {self.epoch} to {checkpoint_path} ---")
+            # Save the network's state_dict (all parameters)
+            torch.save(self.actor.net.state_dict(), checkpoint_path)
+            print(f"--- ltr_trainer: Successfully saved checkpoint for epoch {self.epoch} to {checkpoint_path} ---")
+    # ----- Modification End: Save Checkpoint Conditionally -----

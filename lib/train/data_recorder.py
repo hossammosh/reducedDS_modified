@@ -10,6 +10,7 @@ import numpy as np
 import torch
 from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
+import copy
 
 # --- Configuration ---
 _chunk_size = 1000  # Save every 10,000 samples
@@ -148,9 +149,16 @@ def set_epoch(epoch_number):
         _total_samples_logged_this_epoch = 0
 
 
-def log_data(sample_index: int, data_info: dict, stats: dict):
-    """Logs data for a single sample by adding it to the buffer. Saves chunk if buffer is full."""
-    global _buffer, _samples_in_buffer, _current_epoch, _total_samples_logged_this_epoch
+def samples_stats_save(sample_index: int, data_info: dict, stats: dict):
+    """
+    Save sample statistics to the buffer for later logging to Excel.
+    
+    Args:
+        sample_index: Index of the current sample
+        data_info: Dictionary containing sample information
+        stats: Dictionary containing sample statistics
+    """
+    global _buffer, _samples_in_buffer, _total_samples_logged_this_epoch
 
     # Determine epoch (should be set by trainer via set_epoch or passed in data_info)
     epoch = data_info.get('epoch', _current_epoch)
@@ -317,7 +325,7 @@ if __name__ == '__main__':
         mock_data_info = {'epoch': 1, 'seq_name': f'seq_{i}', 'template_ids': [f't{i}a', f't{i}b'],
                           'search_id': f's{i}'}
         mock_stats = {'Loss/total': random.random(), 'IoU': random.random() * 0.8}
-        log_data(i, mock_data_info, mock_stats)
+        samples_stats_save(i, mock_data_info, mock_stats)
         if i % 5000 == 0:
             print(f"Logged sample {i}/{num_samples_epoch_1} for epoch 1")
     finalize_epoch(1)
@@ -329,7 +337,7 @@ if __name__ == '__main__':
         mock_data_info = {'epoch': 2, 'seq_name': f'seq_{i + 100}', 'template_ids': [f't{i + 100}a', f't{i + 100}b'],
                           'search_id': f's{i + 100}'}
         mock_stats = {'Loss/total': random.random() * 0.5, 'IoU': random.random() * 0.9}
-        log_data(i, mock_data_info, mock_stats)
+        samples_stats_save(i, mock_data_info, mock_stats)
         if i % 1000 == 0:
             print(f"Logged sample {i}/{num_samples_epoch_2} for epoch 2")
     finalize_epoch(2)
