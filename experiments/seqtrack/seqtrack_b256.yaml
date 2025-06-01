@@ -60,7 +60,6 @@ TRAIN:
   CHECKPOINT_SAVE_INTERVAL: 1
   samples_stats_save_permission: [false, true]  # First epoch: false (train), Second epoch: true (save stats)
   SAVE_GRADIENTS: [false, true]  # First epoch: false, Second epoch: true (save gradients)
-  LOG_SAVE: TRUE
 TEST:
   EPOCH: 1
   SEARCH_FACTOR: 4.0
