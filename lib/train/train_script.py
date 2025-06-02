@@ -1,7 +1,7 @@
 import os
 # loss function related
-from lib.utils.box_ops import giou_loss
-from torch.nn.functional import l1_loss
+# from lib.utils.box_ops import giou_loss
+# from torch.nn.functional import l1_loss
 from torch.nn import BCEWithLogitsLoss, MSELoss, CrossEntropyLoss
 # train pipeline related
 from lib.train.trainers import LTRTrainer

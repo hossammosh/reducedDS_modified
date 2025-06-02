@@ -17,7 +17,6 @@ def run(settings):
     settings.batch_size = 20
     settings.num_workers = 8
     settings.multi_gpu = False
-    settings.print_interval = 1
     settings.normalize_mean = [0.485, 0.456, 0.406]
     settings.normalize_std = [0.229, 0.224, 0.225]
     settings.search_area_factor = 6.0

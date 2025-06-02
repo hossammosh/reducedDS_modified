@@ -1,10 +1,12 @@
 import os
-from collections import OrderedDict
-from ltr.trainers import BaseTrainer
-from ltr.admin.stats import AverageMeter, StatValue
-from ltr.admin.tensorboard import TensorboardWriter
-import torch
 import time
+from collections import OrderedDict
+import torch
+
+# Change from absolute to relative import
+from ..admin.stats import AverageMeter, StatValue
+from ..admin.tensorboard import TensorboardWriter
+from .base_trainer import BaseTrainer
 
 
 class LTRTrainer(BaseTrainer):
@@ -33,9 +35,7 @@ class LTRTrainer(BaseTrainer):
 
     def _set_default_settings(self):
         # Dict of all default values
-        default = {'print_interval': 10,
-                   'print_stats': None,
-                   'description': ''}
+        default = {'description': ''}
 
         for param, default_value in default.items():
             if getattr(self.settings, param, None) is None:
@@ -71,7 +71,17 @@ class LTRTrainer(BaseTrainer):
             self._update_stats(stats, batch_size, loader)
 
             # print statistics
-            self._print_stats(i, loader, batch_size)
+            if i % 10 == 0:
+                print_str = '[%s: %d, %d / %d] ' % (loader.name, self.epoch, i, len(loader))
+                print_str += 'FPS: %.1f (%.1f)  ,  ' % (
+                    self.num_frames / (time.time() - self.start_time),
+                    batch_size / (time.time() - self.prev_time)
+                )
+                for name, val in self.stats[loader.name].items():
+                    if hasattr(val, 'avg'):
+                        print_str += '%s: %.5f  ,  ' % (name, val.avg)
+                print(print_str[:-5])
+                self.prev_time = time.time()
 
     def train_epoch(self):
         """Do one epoch for each loader."""
@@ -96,20 +106,6 @@ class LTRTrainer(BaseTrainer):
             if name not in self.stats[loader.name].keys():
                 self.stats[loader.name][name] = AverageMeter()
             self.stats[loader.name][name].update(val, batch_size)
-
-    def _print_stats(self, i, loader, batch_size):
-        self.num_frames += batch_size
-        current_time = time.time()
-        batch_fps = batch_size / (current_time - self.prev_time)
-        average_fps = self.num_frames / (current_time - self.start_time)
-        self.prev_time = current_time
-        if i % self.settings.print_interval == 0 or i == loader.__len__():
-            print_str = '[%s: %d, %d / %d] ' % (loader.name, self.epoch, i, loader.__len__())
-            print_str += 'FPS: %.1f (%.1f)  ,  ' % (average_fps, batch_fps)
-            for name, val in self.stats[loader.name].items():
-                if (self.settings.print_stats is None or name in self.settings.print_stats) and hasattr(val, 'avg'):
-                    print_str += '%s: %.5f  ,  ' % (name, val.avg)
-            print(print_str[:-5])
 
     def _stats_new_epoch(self):
         # Record learning rate
