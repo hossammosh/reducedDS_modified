@@ -29,6 +29,7 @@ def run_training(script_name, config_name, cudnn_benchmark=True, local_rank=-1, 
     """
 
     # Manually call this when you're done
+    #save_log()
     if save_dir is None:
         print("save_dir dir is not given. Use the default dir instead.")
     # This is needed to avoid strange crashes related to opencv

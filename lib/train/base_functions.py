@@ -9,6 +9,7 @@ from lib.utils.misc import is_main_process
 
 
 def update_settings(settings, cfg):
+    #settings.print_interval = cfg.TRAIN.PRINT_INTERVAL
     settings.search_area_factor = {'template': getattr(cfg.DATA.TEMPLATE, "FACTOR", None),
                                    'search': getattr(cfg.DATA.SEARCH, "FACTOR", None)}
     settings.output_sz = {'template': getattr(cfg.DATA.TEMPLATE, "SIZE", 128),
