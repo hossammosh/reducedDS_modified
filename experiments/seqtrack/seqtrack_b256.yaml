@@ -58,8 +58,9 @@ TRAIN:
   log_sample_stats_interval: 200        # Log to Excel every 50 iterations
   parameters_printing_interval: 100
   CHECKPOINT_SAVE_INTERVAL: 1
-  samples_stats_save_permission: [false, true]  # First epoch: false (train), Second epoch: true (save stats)
+  samples_stats_save_permission: [true, true]  # First epoch: false (train), Second epoch: true (save stats)
   SAVE_GRADIENTS: [false, true]  # First epoch: false, Second epoch: true (save gradients)
+  SELECTED_SAMPLING: True
 TEST:
   EPOCH: 1
   SEARCH_FACTOR: 4.0

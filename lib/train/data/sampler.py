@@ -2,6 +2,8 @@ import random
 import torch.utils.data
 from lib.utils import TensorDict
 import numpy as np
+import pandas as pd
+
 def no_processing(data):
     return data
 
@@ -19,7 +21,7 @@ class TrackingSampler(torch.utils.data.Dataset):
 
     def __init__(self, datasets, p_datasets, samples_per_epoch, max_gap,
                  num_search_frames, num_template_frames=1, processing=no_processing, frame_sample_mode='causal',
-                 train_cls=False, pos_prob=0.5):
+                 train_cls=False, pos_prob=0.5, selected_sampling=False):
         """
         args:
             datasets - List of datasets to be used for training
@@ -31,11 +33,17 @@ class TrackingSampler(torch.utils.data.Dataset):
             processing - An instance of Processing class which performs the necessary processing of the data.
             frame_sample_mode - 'causal', 'interval', or 'order'.
             train_cls - this is for Stark-ST, should be False for SeqTrack.
-
+            selected_sampling - Whether to use selected sampling mode (default: False).
         """
         self.datasets = datasets
         self.train_cls = train_cls  # whether we are training classification
         self.pos_prob = pos_prob  # probability of sampling positive class when making classification
+        self.selected_sampling = selected_sampling  # whether to use selected sampling mode
+
+        # If selected_sampling is True, load the Excel file
+        if self.selected_sampling:
+            self.excel_data = pd.read_excel('trained_samples_epoch_1.xlsx')
+            print(f"Loaded Excel file with {len(self.excel_data)} rows")
 
         # If p not provided, sample uniformly from all videos
         if p_datasets is None:
@@ -96,11 +104,131 @@ class TrackingSampler(torch.utils.data.Dataset):
         if self.train_cls:
             return self.getitem_cls()
         else:
-            v=self.getitem()
-            return  (*v, index)
+            if (self.selected_sampling==False):
+                v = self.get_item()
+            else:
+                v=self.get_item_selected(index, self.selected_sampling)
+
+        return  (*v, index)
+
+    def get_item_selected(self, index, selected_sampling):
+        """
+        Get item using selected sampling from the Excel file.
+
+        Args:
+            index: Index of the item to retrieve
+            selected_sampling: Whether to use selected sampling
+
+        Returns:
+            Tuple of (data, data_info) where:
+            - data: TensorDict containing the data
+            - data_info: Dictionary with metadata about the sequence
+        """
+        if selected_sampling and hasattr(self, 'excel_data') and not self.excel_data.empty:
+            # Find the row where 'Sample Index' matches the provided index
+            matched_row = self.excel_data[self.excel_data['Sample Index'] == index]
+
+            if not matched_row.empty:
+                # Get the first match (should be only one match)
+                row = matched_row.iloc[0]
 
 
-    def getitem(self):
+                # Extract template frame information
+                template_ids = [int(x) for x in str(row.get('Template Frame ID', '0')).split(',') if x.strip().isdigit()]
+                template_names = [f"{tid:09d}.jpg" for tid in template_ids]
+                template_paths = [f"{row.get('Template Frame Path', '').rsplit('/', 1)[0]}/{name}" for name in template_names]
+
+                # Extract search frame information
+                search_id = [int(row.get('Search Frame ID', 0))]
+                search_name = f"{search_id[0]:09d}.jpg"
+                search_path = f"{row.get('Search Path', '').rsplit('/', 1)[0]}/{search_name}" if row.get('Search Path') else ""
+
+                # Extract sequence information
+                seq_name = row.get('Seq Name', '')
+                seq_path = row.get('Seq Path', '')
+                
+                # Build the data_info dictionary
+                data_info = {
+                    'seq_id': int(row.get('Seq ID', 0)),
+                    'seq_path': seq_path,
+                    'seq_name': seq_name,
+                    'class_name': row.get('Class Name', 'unknown'),
+                    'vid_id': str(row.get('Vid ID', '')),
+                    'template_ids': template_ids,
+                    'template_names': template_names,
+                    'template_path': template_paths,
+                    'search_id': search_id,
+                    'search_names': [search_name],
+                    'search_path': [search_path]
+                }
+
+
+                # Get the dataset that contains this sequence
+                dataset = None
+                for d in self.datasets:
+                    if hasattr(d, 'get_sequence_info') and d.get_sequence_info(data_info['seq_id']) is not None:
+                        dataset = d
+                        break
+
+                if dataset is None:
+                    print(f"Warning: Could not find dataset for sequence {data_info['seq_id']}")
+                    return self.get_item()  # Fall back to standard sampling
+
+                try:
+                    # Get sequence info
+                    seq_info_dict = dataset.get_sequence_info(data_info['seq_id'])
+                    
+                    # Get template frames and annotations
+                    template_frames, template_anno, meta_obj_train = dataset.get_frames(
+                        data_info['seq_id'],
+                        data_info['template_ids'],
+                        seq_info_dict
+                    )
+                    
+                    # Get search frames and annotations
+                    search_frames, search_anno, meta_obj_test = dataset.get_frames(
+                        data_info['seq_id'],
+                        data_info['search_id'],
+                        seq_info_dict
+                    )
+                    
+                    # Get height and width from template frames
+                    H, W = template_frames[0].shape[:2] if hasattr(template_frames[0], 'shape') else (255, 255)
+                    
+                    # Create masks if not present
+                    template_masks = template_anno.get('mask', [torch.zeros((H, W))] * self.num_template_frames)
+                    search_masks = search_anno.get('mask', [torch.zeros((H, W))] * self.num_search_frames)
+                    
+                    # Create the data dictionary
+                    data = TensorDict({
+                        'template_images': template_frames,
+                        'template_anno': template_anno['bbox'],
+                        'template_masks': template_masks,
+                        'search_images': search_frames,
+                        'search_anno': search_anno['bbox'],
+                        'search_masks': search_masks,
+                        'dataset': dataset.get_name(),
+                        'test_class': meta_obj_test.get('object_class_name')
+                    })
+                    
+                    # Apply processing
+                    data = self.processing(data)
+                    
+                    # Check if data is valid
+                    if not data['valid']:
+                        print(f"Warning: Invalid data for index {index}, falling back to standard sampling")
+                        return self.get_item()
+                        
+                    return data, data_info
+                    
+                except Exception as e:
+                    print(f"Error in get_item_selected for index {index}: {str(e)}")
+                    return self.get_item()  # Fall back to standard sampling
+        
+        # If we get here, either selected_sampling is False or we couldn't find the index in the Excel file
+        return self.get_item()  # Fall back to standard sampling
+
+    def get_item(self):
         """
         returns:
             TensorDict - dict containing all the data blocks

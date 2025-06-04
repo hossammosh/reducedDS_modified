@@ -26,6 +26,10 @@ def update_settings(settings, cfg):
     # ADD THESE TWO LINES:
     settings.log_sample_stats_interval = getattr(cfg.TRAIN, "log_sample_stats_interval", 100)
     settings.parameters_printing_interval = getattr(cfg.TRAIN, "parameters_printing_interval", 10)
+    settings.samples_stats_save_permission = getattr(cfg.TRAIN, "samples_stats_save_permission", [True, True])
+    settings.save_gradients = getattr(cfg.TRAIN, "SAVE_GRADIENTS", [False, False])
+    settings.selected_sampling = getattr(cfg.TRAIN, "SELECTED_SAMPLING", False)
+
 
 
 def names2datasets(name_list: list, settings, image_loader):
@@ -115,7 +119,8 @@ def build_dataloaders(cfg, settings):
                                             samples_per_epoch=cfg.DATA.TRAIN.SAMPLE_PER_EPOCH,
                                             max_gap=cfg.DATA.MAX_SAMPLE_INTERVAL, num_search_frames=settings.num_search,
                                             num_template_frames=settings.num_template, processing=data_processing_train,
-                                            frame_sample_mode=sampler_mode
+                                            frame_sample_mode=sampler_mode,
+                                            selected_sampling=cfg.TRAIN.SELECTED_SAMPLING
                                             )
     #a = dataset_train[5]
 
