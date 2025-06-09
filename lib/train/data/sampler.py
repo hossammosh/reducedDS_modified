@@ -105,13 +105,13 @@ class TrackingSampler(torch.utils.data.Dataset):
             return self.getitem_cls()
         else:
             if (self.selected_sampling==False):
-                v = self.get_item()
+                v = self.getitem()
             else:
-                v=self.get_item_selected(index, self.selected_sampling)
+                v=self.getitem_selected(index, self.selected_sampling)
 
         return  (*v, index)
 
-    def get_item_selected(self, index, selected_sampling):
+    def getitem_selected(self, index, selected_sampling):
         """
         Get item using selected sampling from the Excel file.
 
@@ -172,7 +172,7 @@ class TrackingSampler(torch.utils.data.Dataset):
 
                 if dataset is None:
                     print(f"Warning: Could not find dataset for sequence {data_info['seq_id']}")
-                    return self.get_item()  # Fall back to standard sampling
+                    return self.getitem()  # Fall back to standard sampling
 
                 try:
                     # Get sequence info
@@ -217,18 +217,18 @@ class TrackingSampler(torch.utils.data.Dataset):
                     # Check if data is valid
                     if not data['valid']:
                         print(f"Warning: Invalid data for index {index}, falling back to standard sampling")
-                        return self.get_item()
+                        return self.getitem()
                         
                     return data, data_info
                     
                 except Exception as e:
-                    print(f"Error in get_item_selected for index {index}: {str(e)}")
-                    return self.get_item()  # Fall back to standard sampling
+                    print(f"Error in getitem_selected for index {index}: {str(e)}")
+                    return self.getitem()  # Fall back to standard sampling
         
         # If we get here, either selected_sampling is False or we couldn't find the index in the Excel file
-        return self.get_item()  # Fall back to standard sampling
+        return self.getitem()  # Fall back to standard sampling
 
-    def get_item(self):
+    def getitem(self):
         """
         returns:
             TensorDict - dict containing all the data blocks

@@ -25,10 +25,10 @@ def update_settings(settings, cfg):
 
     # ADD THESE TWO LINES:
     settings.log_sample_stats_interval = getattr(cfg.TRAIN, "log_sample_stats_interval", 100)
-    settings.parameters_printing_interval = getattr(cfg.TRAIN, "parameters_printing_interval", 10)
+    settings.ss_print_interval = getattr(cfg.TRAIN, "ss_print_interval", 10)
     settings.samples_stats_save_permission = getattr(cfg.TRAIN, "samples_stats_save_permission", [True, True])
     settings.save_gradients = getattr(cfg.TRAIN, "SAVE_GRADIENTS", [False, False])
-    settings.selected_sampling = getattr(cfg.TRAIN, "SELECTED_SAMPLING", False)
+    settings.selected_sampling = getattr(cfg.TRAIN, "selected_sampling", False)
 
 
 

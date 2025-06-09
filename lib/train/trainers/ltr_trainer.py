@@ -257,11 +257,10 @@ class LTRTrainer(BaseTrainer):
         average_fps = self.num_frames / (current_time - self.start_time)
         self.prev_time = current_time
 
-        # Define parameters_printing_interval once at the beginning
-        parameters_printing_interval = getattr(self.settings, 'parameters_printing_interval', 50)
+        # Define ss_print_interval once at the beginning
+        ss_print_interval = getattr(self.settings, 'ss_print_interval', 50)
 
-        # Then use it in the conditional check
-        if i % parameters_printing_interval == 0 or i == loader.__len__():
+        if i % ss_print_interval == 0 or i == loader.__len__():
             # ===== NEW CODE BLOCK START =====
             # Calculate progress information
             total_samples_per_epoch = loader.__len__()
