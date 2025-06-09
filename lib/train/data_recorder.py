@@ -13,7 +13,7 @@ from openpyxl.utils import get_column_letter
 import copy
 
 # --- Configuration ---
-_chunk_size = 500  # Save every 10,000 samples
+_chunk_size = 5  # Save every 10,000 samples
 _delete_chunks_after_merge = True  # Set to False to keep intermediate chunk files
 
 # --- Global State (Protected by Lock) ---
@@ -33,14 +33,20 @@ _headers = [
 
 
 # --- Filename Generation ---
-def _get_chunk_filename(epoch, start_index, end_index):
+def _get_chunk_filename(epoch, start_index, end_index, selected_sampling=False):
     # Save in the root directory where the script is run
-    return f'samples_log_epoch_{epoch}_sample_{start_index}_{end_index}.xlsx'
+    if selected_sampling:
+        return f'ss_epoch_{epoch}_selected_sample_{start_index}_{end_index}.xlsx'
+    else:
+        return f'ss_epoch_{epoch}_sample_{start_index}_{end_index}.xlsx'
 
 
-def _get_final_filename(epoch, total_samples):
+def _get_final_filename(epoch, total_samples, selected_sampling=False):
     # Save in the root directory where the script is run
-    return f'samples_log_epoch_{epoch}_all_sample_1_{total_samples}.xlsx'
+    if selected_sampling:
+        return f'ss_epoch_{epoch}_selected_all_sample_1_{total_samples}.xlsx'
+    else:
+        return f'ss_epoch_{epoch}_all_sample_1_{total_samples}.xlsx'
 
 
 # --- Helper Functions ---
@@ -103,14 +109,14 @@ def _format_excel_file(filename):
 
 
 # --- Core Logic ---
-def _save_chunk(epoch, start_index, end_index, data_to_save):
+def _save_chunk(epoch, start_index, end_index, data_to_save, selected_sampling=False):
     """Saves the current buffer to a chunk file."""
     global _chunk_files
     if not data_to_save:
         print("No data in buffer to save as chunk.")
         return
 
-    filename = _get_chunk_filename(epoch, start_index, end_index)
+    filename = _get_chunk_filename(epoch, start_index, end_index, selected_sampling)
     print(f"Saving chunk {start_index}-{end_index} for epoch {epoch} to {filename}...")
 
     try:
@@ -149,7 +155,7 @@ def set_epoch(epoch_number):
         _total_samples_logged_this_epoch = 0
 
 
-def samples_stats_save(sample_index: int, data_info: dict, stats: dict):
+def samples_stats_save(sample_index: int, data_info: dict, stats: dict, selected_sampling=False):
     """
     Save sample statistics to the buffer for later logging to Excel.
     
@@ -157,6 +163,7 @@ def samples_stats_save(sample_index: int, data_info: dict, stats: dict):
         sample_index: Index of the current sample
         data_info: Dictionary containing sample information
         stats: Dictionary containing sample statistics
+        selected_sampling: Whether this is a selected sampling or not
     """
     global _buffer, _samples_in_buffer, _total_samples_logged_this_epoch
 
@@ -205,12 +212,12 @@ def samples_stats_save(sample_index: int, data_info: dict, stats: dict):
             start_index = current_log_index - _samples_in_buffer + 1
             end_index = current_log_index
             # Save the current buffer and clear it
-            _save_chunk(epoch, start_index, end_index, _buffer)
+            _save_chunk(epoch, start_index, end_index, _buffer, selected_sampling)
             _buffer = []
             _samples_in_buffer = 0
 
 
-def finalize_epoch(epoch):
+def finalize_epoch(epoch, selected_sampling=False):
     """Finalizes logging for the epoch: saves remaining buffer, merges chunks, cleans up."""
     global _buffer, _samples_in_buffer, _chunk_files, _total_samples_logged_this_epoch, _current_epoch
 
@@ -232,7 +239,7 @@ def finalize_epoch(epoch):
             start_index = _total_samples_logged_this_epoch - _samples_in_buffer + 1
             end_index = _total_samples_logged_this_epoch
             print(f"Saving final buffer chunk ({_samples_in_buffer} samples) for epoch {epoch}...")
-            _save_chunk(epoch, start_index, end_index, _buffer)
+            _save_chunk(epoch, start_index, end_index, _buffer, selected_sampling)
             _buffer = []  # Clear buffer after saving
             _samples_in_buffer = 0
         else:
@@ -271,7 +278,7 @@ def finalize_epoch(epoch):
         final_df = final_df.reindex(columns=_headers)
 
         # Determine final filename
-        final_filename = _get_final_filename(epoch, _total_samples_logged_this_epoch)
+        final_filename = _get_final_filename(epoch, _total_samples_logged_this_epoch, selected_sampling)
         print(f"Saving final merged file to: {final_filename}")
 
         try:
@@ -362,8 +369,8 @@ def reset_log():
         # Delete old log files matching the patterns
         deleted_count = 0
         # Use glob to find matching files in the current directory (.)
-        chunk_pattern = "samples_log_epoch_*_sample_*.xlsx"
-        final_pattern = "samples_log_epoch_*_all_sample_*.xlsx"
+        chunk_pattern = "ss_epoch_*_sample_*.xlsx"
+        final_pattern = "ss_epoch_*_all_sample_*.xlsx"
 
         files_to_delete = glob.glob(chunk_pattern) + glob.glob(final_pattern)
 
