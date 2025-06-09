@@ -15,7 +15,7 @@ import copy
 # --- Configuration ---
 _chunk_size = 20  # Save every 10,000 samples
 _delete_chunks_after_merge = True  # Set to False to keep intermediate chunk files
-
+select_sampling = False
 # --- Global State (Protected by Lock) ---
 _buffer = []
 _chunk_files = []
@@ -35,12 +35,20 @@ _headers = [
 # --- Filename Generation ---
 def _get_chunk_filename(epoch, start_index, end_index):
     # Save in the root directory where the script is run
-    return f'samples_log_epoch_{epoch}_sample_{start_index}_{end_index}.xlsx'
+    global select_sampling
+    if select_sampling:
+        return f'ss_epoch_{epoch}_selected_sample_{start_index}_{end_index}.xlsx'
+    else:
+        return f'ss_epoch_{epoch}_sample_{start_index}_{end_index}.xlsx'
 
 
 def _get_final_filename(epoch, total_samples):
     # Save in the root directory where the script is run
-    return f'samples_log_epoch_{epoch}_all_sample_1_{total_samples}.xlsx'
+    global select_sampling
+    if select_sampling:
+        return f'ss_epoch_{epoch}_all_selected_sample_1_{total_samples}.xlsx'
+    else:
+        return f'ss_epoch_{epoch}_all_sample_1_{total_samples}.xlsx'
 
 
 # --- Helper Functions ---
@@ -129,6 +137,18 @@ def _save_chunk(epoch, start_index, end_index, data_to_save):
 
     except Exception as e:
         print(f"Error saving chunk {filename}: {e}")
+
+
+def set_sampling(enable):
+    """
+    Enable or disable selected sampling mode.
+    
+    Args:
+        enable (bool): If True, enables selected sampling mode.
+    """
+    global select_sampling
+    select_sampling = enable
+    print(f"Selected sampling mode set to: {select_sampling}")
 
 
 def set_epoch(epoch_number):
@@ -362,8 +382,8 @@ def reset_log():
         # Delete old log files matching the patterns
         deleted_count = 0
         # Use glob to find matching files in the current directory (.)
-        chunk_pattern = "samples_log_epoch_*_sample_*.xlsx"
-        final_pattern = "samples_log_epoch_*_all_sample_*.xlsx"
+        chunk_pattern = "ss_epoch_*_sample_*.xlsx"
+        final_pattern = "ss_epoch_*_all_sample_*.xlsx"
 
         files_to_delete = glob.glob(chunk_pattern) + glob.glob(final_pattern)
 

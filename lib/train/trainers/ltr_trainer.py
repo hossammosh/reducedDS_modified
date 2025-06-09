@@ -56,8 +56,9 @@ class LTRTrainer(BaseTrainer):
 
         # ----- NEW: Initialize iteration counter for Excel logging frequency -----
         self.iteration_counter = 0
+        data_recorder.set_sampling(settings.selected_sampling)
 
-        # ----- NEW: Add log_save parameter -----
+
         self.log_save = log_save
         self.ss_permission = self.settings.ss_permission
         self.save_gradients = self.settings.save_gradients
