@@ -59,6 +59,8 @@ class LTRTrainer(BaseTrainer):
 
         # ----- NEW: Add log_save parameter -----
         self.log_save = log_save
+        self.ss_permission = self.settings.ss_permission
+        self.save_gradients = self.settings.save_gradients
 
     def cycle_dataset(self, loader):
         """Do a cycle of training or validation."""
@@ -68,36 +70,25 @@ class LTRTrainer(BaseTrainer):
         self._init_timing()
         print('epoch no.= ', self.epoch)
 
-        # Get samples_stats_save_permission array and determine current permission
-        samples_stats_save_permission = getattr(self.settings, 'samples_stats_save_permission', [False, True])
         current_epoch_idx = self.epoch - 1  # Convert to 0-based index
-        
-        # Determine if we should save stats for this epoch
-        if current_epoch_idx < len(samples_stats_save_permission):
-            should_save_stats = samples_stats_save_permission[current_epoch_idx]
-        else:
-            should_save_stats = samples_stats_save_permission[-1]  # Use last value for any additional epochs
-            
-        # Get SAVE_GRADIENTS array and determine if we should save gradients this epoch
-        save_gradients = getattr(self.settings, 'SAVE_GRADIENTS', [False, True])
-        if current_epoch_idx < len(save_gradients):
-            should_save_gradients = save_gradients[current_epoch_idx] and loader.training
-        else:
-            should_save_gradients = save_gradients[-1] and loader.training
-            
-        print(f"Epoch {self.epoch}:")
-        print(f"  - samples_stats_save_permission = {should_save_stats}")
-        print(f"  - SAVE_GRADIENTS = {should_save_gradients}")
+        save_stats = self.ss_permission[current_epoch_idx]
+        if save_stats:
+            data_recorder.set_epoch(self.epoch)
+        save_gradients_this_epoch = self.save_gradients[current_epoch_idx]
 
-        # Initialize gradient saving if enabled for this epoch
-        self._save_gradients = False
-        if should_save_gradients:
+        print(f"  - samples_stats_save_permission  at this epoch= {save_stats}")
+        print(f"  - save_gradients at this epoch= {save_gradients_this_epoch}")
+        if save_gradients_this_epoch:
             try:
                 self._grad_output_dir = os.path.join(self.settings.env.workspace_dir, 'gradients')
                 print(f"Gradient saving is ENABLED for this epoch. Gradients will be saved to: {self._grad_output_dir}")
-                self._save_gradients = True
+                # print("no")
             except Exception as e:
                 print(f"Error initializing gradient saving: {e}")
+
+        # Initialize timing
+        self.last_time_print = time.time()
+        self.iteration_counter = 0
 
         # Initialize timing
         self.last_time_print = time.time()
@@ -109,50 +100,30 @@ class LTRTrainer(BaseTrainer):
             data_info = data[1]
             sample_index = data[2]
             data = data[0]
-
             if self.move_data_to_gpu:
                 data = data.to(self.device)
-
             data['epoch'] = self.epoch
             data['iteration'] = i
             data['time'] = time.time()
 
             # Forward pass
             loss, stats = self.actor(data)
-            
-            # Save sample statistics if enabled for this epoch
-            if should_save_stats and (i % getattr(self.settings, 'log_sample_stats_interval', 200) == 0 or i == len(loader)):
+            if save_stats:
                 try:
-                    import lib.train.data_recorder as data_recorder
                     data_recorder.samples_stats_save(
                         sample_index=sample_index,
                         data_info=data_info,
                         stats=stats
                     )
-                    print(f"Sample statistics saved at iteration {self.iteration_counter}")
+                    #print(f"Sample statistics saved at iteration {self.iteration_counter}")
                 except Exception as e:
                     print(f"Error saving sample statistics: {e}")
 
             # Backward pass and parameter updates (only if not in stats saving mode)
-            if loader.training and not should_save_stats:
+            if loader.training and not save_stats:
                 self.optimizer.zero_grad()
                 if not self.use_amp:
                     loss.backward()
-                    
-                    # Save gradients if enabled for this iteration
-                    if self._save_gradients:
-                        try:
-                            import lib.train.data_recorder as data_recorder
-                            data_recorder.save_gradients(
-                                model=self.actor.net,
-                                sample_index=sample_index,
-                                epoch=self.epoch,
-                                output_dir=self._grad_output_dir
-                            )
-                            print(f"Saved gradients for sample {sample_index}")
-                        except Exception as e:
-                            print(f"Error saving gradients: {e}")
-                    
                     if self.settings.grad_clip_norm > 0:
                         torch.nn.utils.clip_grad_norm_(self.actor.net.parameters(), self.settings.grad_clip_norm)
                     self.optimizer.step()
@@ -171,27 +142,17 @@ class LTRTrainer(BaseTrainer):
             self._print_stats(i, loader, batch_size)
 
     def train_epoch(self):
-        # Set the current epoch in the data recorder at the beginning of each epoch
-        samples_stats_save_permission = getattr(self.settings, 'samples_stats_save_permission', [False, True])
-        current_epoch_idx = self.epoch - 1  # Convert to 0-based index
-        should_save_stats = samples_stats_save_permission[min(current_epoch_idx, len(samples_stats_save_permission) - 1)]
-        
-        if should_save_stats:
-            data_recorder.set_epoch(self.epoch)
-
         for loader in self.loaders:
             self.cycle_dataset(loader)
 
         self._stats_new_epoch()
 
     def _stats_new_epoch(self):
-        # Finalize data recording for the current epoch (save remaining buffer, merge chunks)
-        # Ensure this runs only on the main process to avoid race conditions during merge
-        samples_stats_save_permission = getattr(self.settings, 'samples_stats_save_permission', [False, True])
+        ss_permission = self.settings.ss_permission
         current_epoch_idx = self.epoch - 1  # Convert to 0-based index
-        should_save_stats = samples_stats_save_permission[min(current_epoch_idx, len(samples_stats_save_permission) - 1)]
-        
-        if should_save_stats and self.settings.local_rank in [-1, 0]:
+        save_stats = ss_permission[min(current_epoch_idx, len(ss_permission) - 1)]
+
+        if save_stats and self.settings.local_rank in [-1, 0]:
             print(f"--- ltr_trainer: Finalizing data recording for epoch {self.epoch} ---")
             data_recorder.finalize_epoch(self.epoch)
             print(f"--- ltr_trainer: Data recording finalized for epoch {self.epoch} ---")
@@ -257,52 +218,83 @@ class LTRTrainer(BaseTrainer):
         average_fps = self.num_frames / (current_time - self.start_time)
         self.prev_time = current_time
 
-        # Define ss_print_interval once at the beginning
-        ss_print_interval = getattr(self.settings, 'ss_print_interval', 50)
+        # Define parameters_printing_interval once at the beginning
+        ss_print_interval = self.settings.ss_print_interval
 
+        # Then use it in the conditional check
         if i % ss_print_interval == 0 or i == loader.__len__():
-            # ===== NEW CODE BLOCK START =====
-            # Calculate progress information
-            total_samples_per_epoch = loader.__len__()
-            samples_completed = i
-            samples_left = total_samples_per_epoch - i
-            progress_ratio = samples_completed / total_samples_per_epoch
-            samples_left_ratio = samples_left / total_samples_per_epoch
+            # Format time in days, hours, minutes, seconds with fixed width
+            def format_time(seconds):
+                days = int(seconds // (24 * 3600))
+                seconds = seconds % (24 * 3600)
+                hours = int(seconds // 3600)
+                seconds %= 3600
+                minutes = int(seconds // 60)
+                seconds = int(seconds % 60)
 
-            # Time calculations for current epoch
+                time_parts = []
+                if days > 0:
+                    time_parts.append(f"{days}d")
+                    time_parts.append(f"{hours:02d}h")
+                    time_parts.append(f"{minutes:02d}m")
+                elif hours > 0:
+                    time_parts.append(f"{hours:02d}h")
+                    time_parts.append(f"{minutes:02d}m")
+                else:
+                    time_parts.append(f"{minutes:02d}m")
+                time_parts.append(f"{seconds:02d}s")
+
+                return ' '.join(time_parts)
+
+            # Format epoch info with fixed width
+            epoch_info = f"Epoch {self.epoch:2d}, {i:2d}/{loader.__len__():2d}"
+
+            # Format samples info with fixed width
+            samples_left = loader.__len__() - i
+            samples_left_ratio = samples_left / loader.__len__()
+            samples_info = f"{samples_left:2d} ({samples_left_ratio:5.1%})"
+
+            # Format times with fixed width
             time_used_seconds = current_time - self.start_time
-            time_used_hours = time_used_seconds / 3600
+            time_used_str = format_time(time_used_seconds)
+            time_used_str = f"{time_used_str:>8}"
 
             # Estimate time left for current epoch
-            if progress_ratio > 0:
-                estimated_total_epoch_time = time_used_seconds / progress_ratio
+            if i > 0:
+                estimated_total_epoch_time = time_used_seconds / (i / loader.__len__())
                 time_left_epoch_seconds = estimated_total_epoch_time - time_used_seconds
-                time_left_epoch_hours = time_left_epoch_seconds / 3600
+                time_left_str = format_time(time_left_epoch_seconds)
             else:
-                time_left_epoch_hours = 0
+                time_left_str = "00s"
+            time_left_str = f"{time_left_str:>8}"
 
             # Time for last completed epoch (if not first epoch)
             if hasattr(self, 'last_epoch_time'):
-                last_epoch_time_hours = self.last_epoch_time / 3600
+                last_epoch_str = format_time(self.last_epoch_time)
             else:
-                last_epoch_time_hours = 0.0
+                last_epoch_str = "00s"
+            last_epoch_str = f"{last_epoch_str:>8}"
 
             # Total time since training start
             if hasattr(self, 'training_start_time'):
                 total_training_time_seconds = current_time - self.training_start_time
-                total_training_time_hours = total_training_time_seconds / 3600
+                total_training_str = format_time(total_training_time_seconds)
             else:
                 # First epoch, initialize training start time
                 self.training_start_time = self.start_time
-                total_training_time_hours = time_used_hours
+                total_training_str = time_used_str
+            total_training_str = f"{total_training_str:>8}"
 
-            # Comprehensive progress line
-            progress_info = (f"[{loader.name}: Epoch {self.epoch}, {i}/{total_samples_per_epoch}] "
-                             f"Samples Left: {samples_left} ({samples_left_ratio:.1%}) | "
-                             f"Current Epoch: {time_used_hours:.2f}h used, {time_left_epoch_hours:.2f}h left | "
-                             f"Last Epoch: {last_epoch_time_hours:.2f}h | "
-                             f"Total Training: {total_training_time_hours:.2f}h | "
-                             f"FPS: {average_fps:.1f} ({batch_fps:.1f})")
+            # Format FPS with fixed width
+            fps_str = f"{average_fps:4.1f} ({batch_fps:4.1f})"
+
+            # Comprehensive progress line with fixed width fields
+            progress_info = (f"[{loader.name}: {epoch_info}] "
+                             f"Samples Left: {samples_info} | "
+                             f"Current Epoch: {time_used_str} used, {time_left_str} left | "
+                             f"Last Epoch: {last_epoch_str} | "
+                             f"Total: {total_training_str} | "
+                             f"FPS: {fps_str}")
 
             # Add loss statistics to the same line
             stats_str = ""
@@ -334,8 +326,6 @@ class LTRTrainer(BaseTrainer):
                         print(f"Error writing to log file {log_file_path}: {e}")
                 else:
                     print("Log file path not configured in settings.")
-
-    # ----- Modification Start: Save Checkpoint Conditionally -----
     # Save checkpoint only for the first 10 epochs as requested for the initial stage
     def _write_tensorboard(self):
         if self.epoch == 1:

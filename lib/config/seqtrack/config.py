@@ -45,9 +45,9 @@ cfg.TRAIN.SCHEDULER.TYPE = "step"
 cfg.TRAIN.SCHEDULER.DECAY_RATE = 0.1
 cfg.TRAIN.log_sample_stats_interval  = 50
 cfg.TRAIN.ss_print_interval  = 10
-cfg.TRAIN.CHECKPOINT_SAVE_INTERVAL =1
+cfg.TRAIN.checkpoint_save_interval =1
 cfg.TRAIN.samples_stats_save_permission = [False, False]  # Default value
-cfg.TRAIN.SAVE_GRADIENTS = [False, False]  # Default value
+cfg.TRAIN.save_gradients = [False, False]  # Default value
 cfg.TRAIN.selected_sampling=False
 # DATA
 cfg.DATA = edict()

@@ -42,7 +42,7 @@ class TrackingSampler(torch.utils.data.Dataset):
 
         # If selected_sampling is True, load the Excel file
         if self.selected_sampling:
-            self.excel_data = pd.read_excel('trained_samples_epoch_1.xlsx')
+            self.excel_data = pd.read_excel('samples_log_epoch_2_all_sample_1_20.xlsx')
             print(f"Loaded Excel file with {len(self.excel_data)} rows")
 
         # If p not provided, sample uniformly from all videos
@@ -161,44 +161,34 @@ class TrackingSampler(torch.utils.data.Dataset):
                     'search_names': [search_name],
                     'search_path': [search_path]
                 }
-
-
-                # Get the dataset that contains this sequence
                 dataset = None
                 for d in self.datasets:
                     if hasattr(d, 'get_sequence_info') and d.get_sequence_info(data_info['seq_id']) is not None:
                         dataset = d
                         break
-
                 if dataset is None:
                     print(f"Warning: Could not find dataset for sequence {data_info['seq_id']}")
                     return self.getitem()  # Fall back to standard sampling
-
                 try:
                     # Get sequence info
                     seq_info_dict = dataset.get_sequence_info(data_info['seq_id'])
-                    
                     # Get template frames and annotations
                     template_frames, template_anno, meta_obj_train = dataset.get_frames(
                         data_info['seq_id'],
                         data_info['template_ids'],
                         seq_info_dict
                     )
-                    
                     # Get search frames and annotations
                     search_frames, search_anno, meta_obj_test = dataset.get_frames(
                         data_info['seq_id'],
                         data_info['search_id'],
                         seq_info_dict
                     )
-                    
                     # Get height and width from template frames
                     H, W = template_frames[0].shape[:2] if hasattr(template_frames[0], 'shape') else (255, 255)
-                    
                     # Create masks if not present
                     template_masks = template_anno.get('mask', [torch.zeros((H, W))] * self.num_template_frames)
                     search_masks = search_anno.get('mask', [torch.zeros((H, W))] * self.num_search_frames)
-                    
                     # Create the data dictionary
                     data = TensorDict({
                         'template_images': template_frames,
@@ -210,17 +200,13 @@ class TrackingSampler(torch.utils.data.Dataset):
                         'dataset': dataset.get_name(),
                         'test_class': meta_obj_test.get('object_class_name')
                     })
-                    
                     # Apply processing
                     data = self.processing(data)
-                    
                     # Check if data is valid
                     if not data['valid']:
                         print(f"Warning: Invalid data for index {index}, falling back to standard sampling")
                         return self.getitem()
-                        
                     return data, data_info
-                    
                 except Exception as e:
                     print(f"Error in getitem_selected for index {index}: {str(e)}")
                     return self.getitem()  # Fall back to standard sampling
@@ -296,13 +282,10 @@ class TrackingSampler(torch.utils.data.Dataset):
                 data_info['template_ids'] = template_ids
                 data_info['template_names'] = dataset.frames['frame_names']
                 data_info['template_path'] = dataset.frames['frame_paths']
-
                 search_frames, search_anno, meta_obj_test = dataset.get_frames(seq_id, search_id, seq_info_dict)
-
                 data_info['search_id'] = search_id
                 data_info['search_names'] = dataset.frames['frame_names']
                 data_info['search_path'] = dataset.frames['frame_paths']
-
                 H, W, _ = template_frames[0].shape
                 template_masks = template_anno['mask'] if 'mask' in template_anno else [torch.zeros(
                     (H, W))] * self.num_template_frames

@@ -24,10 +24,10 @@ def update_settings(settings, cfg):
     settings.scheduler_type = cfg.TRAIN.SCHEDULER.TYPE
 
     # ADD THESE TWO LINES:
-    settings.log_sample_stats_interval = getattr(cfg.TRAIN, "log_sample_stats_interval", 100)
-    settings.ss_print_interval = getattr(cfg.TRAIN, "ss_print_interval", 10)
-    settings.samples_stats_save_permission = getattr(cfg.TRAIN, "samples_stats_save_permission", [True, True])
-    settings.save_gradients = getattr(cfg.TRAIN, "SAVE_GRADIENTS", [False, False])
+    settings.ss_print_interval = getattr(cfg.TRAIN, "ss_print_interval")
+    settings.ss_permission = getattr(cfg.TRAIN, "samples_stats_save_permission")
+    settings.save_gradients = getattr(cfg.TRAIN, "save_gradients")
+    settings.checkpoint_save_interval = getattr(cfg.TRAIN, "checkpoint_save_interval")
     settings.selected_sampling = getattr(cfg.TRAIN, "selected_sampling", False)
 
 
@@ -120,7 +120,7 @@ def build_dataloaders(cfg, settings):
                                             max_gap=cfg.DATA.MAX_SAMPLE_INTERVAL, num_search_frames=settings.num_search,
                                             num_template_frames=settings.num_template, processing=data_processing_train,
                                             frame_sample_mode=sampler_mode,
-                                            selected_sampling=cfg.TRAIN.SELECTED_SAMPLING
+                                            selected_sampling=cfg.TRAIN.selected_sampling
                                             )
     #a = dataset_train[5]
 
