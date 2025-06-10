@@ -106,8 +106,7 @@ class LTRTrainer(BaseTrainer):
                     data_recorder.samples_stats_save(
                         sample_index=sample_index,
                         data_info=data_info,
-                        stats=stats,
-                        settings=self.settings
+                        stats=stats
                     )
                     #print(f"Sample statistics saved at iteration {self.iteration_counter}")
                 except Exception as e:

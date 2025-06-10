@@ -107,7 +107,7 @@ def _format_excel_file(filename):
 
 
 # --- Core Logic ---
-def _save_chunk(epoch, start_index, end_index, data_to_save,sample_per_epoch):
+def _save_chunk(epoch, start_index, end_index, data_to_save):
     """Saves the current buffer to a chunk file."""
     global _chunk_files
     if not data_to_save:
@@ -162,7 +162,7 @@ def set_epoch(epoch_number):
         _total_samples_logged_this_epoch = 0
 
 
-def samples_stats_save(sample_index: int, data_info: dict, stats: dict, settings=None):
+def samples_stats_save(sample_index: int, data_info: dict, stats: dict):
     """
     Save sample statistics to the buffer for later logging to Excel.
 
@@ -170,13 +170,9 @@ def samples_stats_save(sample_index: int, data_info: dict, stats: dict, settings
         sample_index: Index of the current sample
         data_info: Dictionary containing sample information
         stats: Dictionary containing sample statistics
-        settings: Optional settings object containing configuration
     """
-    global _buffer, _samples_in_buffer, _total_samples_logged_this_epoch, sample_per_epoch
-    
-    # Get samples per epoch from settings if provided
-    if settings is not None:
-        sample_per_epoch = settings.sample_per_epoch
+    global _buffer, _samples_in_buffer, _total_samples_logged_this_epoch
+
     # Determine epoch (should be set by trainer via set_epoch or passed in data_info)
     epoch = data_info.get('epoch', _current_epoch)
     if epoch is None:
@@ -222,7 +218,7 @@ def samples_stats_save(sample_index: int, data_info: dict, stats: dict, settings
             start_index = current_log_index - _samples_in_buffer + 1
             end_index = current_log_index
             # Save the current buffer and clear it
-            _save_chunk(epoch, start_index, end_index, _buffer,sample_per_epoch)
+            _save_chunk(epoch, start_index, end_index, _buffer)
             _buffer = []
             _samples_in_buffer = 0
 
