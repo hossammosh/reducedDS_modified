@@ -60,8 +60,6 @@ class LTRTrainer(BaseTrainer):
 
 
         self.log_save = log_save
-        # self.ss_permission = self.settings.ss_permission
-        # self.save_gradients = self.settings.save_gradients
 
     def cycle_dataset(self, loader):
         """Do a cycle of training or validation."""
@@ -79,18 +77,8 @@ class LTRTrainer(BaseTrainer):
         # Always set the epoch, regardless of sampling mode
         data_recorder.set_epoch(self.epoch)
         save_stats_permission = not (self.settings.selected_sampling and self.epoch == 2)
-        #save_gradients_this_epoch = self.save_gradients[current_epoch_idx]
-
         print(f"  - samples_stats_save_permission  at this epoch= {save_stats_permission}")
         print(f"  - save_gradients at this epoch= {save_stats_permission}")
-        # if save_stats_permission: #related to the gradient not yet impelemnted
-        #     try:
-        #         self._grad_output_dir = os.path.join(self.settings.env.workspace_dir, 'gradients')
-        #         print(f"Gradient saving is ENABLED for this epoch. Gradients will be saved to: {self._grad_output_dir}")
-        #         # print("no")
-        #     except Exception as e:
-        #         print(f"Error initializing gradient saving: {e}")
-
         # Initialize timing
         self.last_time_print = time.time()
         self.iteration_counter = 0
@@ -118,7 +106,8 @@ class LTRTrainer(BaseTrainer):
                     data_recorder.samples_stats_save(
                         sample_index=sample_index,
                         data_info=data_info,
-                        stats=stats
+                        stats=stats,
+                        settings=self.settings
                     )
                     #print(f"Sample statistics saved at iteration {self.iteration_counter}")
                 except Exception as e:

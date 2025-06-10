@@ -107,7 +107,7 @@ def _format_excel_file(filename):
 
 
 # --- Core Logic ---
-def _save_chunk(epoch, start_index, end_index, data_to_save):
+def _save_chunk(epoch, start_index, end_index, data_to_save,sample_per_epoch):
     """Saves the current buffer to a chunk file."""
     global _chunk_files
     if not data_to_save:
@@ -130,6 +130,9 @@ def _save_chunk(epoch, start_index, end_index, data_to_save):
 
         _chunk_files.append(filename)
         print(f"Successfully saved and formatted chunk: {filename}")
+        # if(end_index==sample_per_epoch):
+        #     print(f"Saving final file")
+        #     finalize_epoch(epoch)
 
     except Exception as e:
         print(f"Error saving chunk {filename}: {e}")
@@ -159,17 +162,21 @@ def set_epoch(epoch_number):
         _total_samples_logged_this_epoch = 0
 
 
-def samples_stats_save(sample_index: int, data_info: dict, stats: dict):
+def samples_stats_save(sample_index: int, data_info: dict, stats: dict, settings=None):
     """
     Save sample statistics to the buffer for later logging to Excel.
-    
+
     Args:
         sample_index: Index of the current sample
         data_info: Dictionary containing sample information
         stats: Dictionary containing sample statistics
+        settings: Optional settings object containing configuration
     """
-    global _buffer, _samples_in_buffer, _total_samples_logged_this_epoch
-
+    global _buffer, _samples_in_buffer, _total_samples_logged_this_epoch, sample_per_epoch
+    
+    # Get samples per epoch from settings if provided
+    if settings is not None:
+        sample_per_epoch = settings.sample_per_epoch
     # Determine epoch (should be set by trainer via set_epoch or passed in data_info)
     epoch = data_info.get('epoch', _current_epoch)
     if epoch is None:
@@ -215,7 +222,7 @@ def samples_stats_save(sample_index: int, data_info: dict, stats: dict):
             start_index = current_log_index - _samples_in_buffer + 1
             end_index = current_log_index
             # Save the current buffer and clear it
-            _save_chunk(epoch, start_index, end_index, _buffer)
+            _save_chunk(epoch, start_index, end_index, _buffer,sample_per_epoch)
             _buffer = []
             _samples_in_buffer = 0
 
@@ -360,7 +367,7 @@ import glob  # Import glob for file pattern matching
 def reset_log():
     """Resets the data recorder state and conditionally deletes previous log files based on sampling mode."""
     global _buffer, _chunk_files, _samples_in_buffer, _total_samples_logged_this_epoch, _current_epoch, select_sampling
-    
+
     with _file_lock:
         print("Resetting data recorder state...")
         # Reset global state variables
@@ -373,10 +380,10 @@ def reset_log():
         # Define file patterns to search for
         chunk_pattern = "ss_epoch_*_all_chunk_sample_*.xlsx"
         final_pattern = "ss_epoch_*_all_sample_*.xlsx"
-        
+
         # Find all matching files
         existing_excel_files = glob.glob(chunk_pattern) + glob.glob(final_pattern)
-        
+
         # Print the list of existing files
         if existing_excel_files:
             print("\nFound the following log files:")
@@ -385,13 +392,13 @@ def reset_log():
             print(f"\nTotal files found: {len(existing_excel_files)}")
         else:
             print("\nNo existing log files found.")
-        
+
         # Check sampling mode and handle file deletion accordingly
         if select_sampling:
             print("\n Selected Sampling is ENABLED. Existing log files will be PRESERVED.")
         else:
             print("\n Selected Sampling is DISABLED. Existing log files will be DELETED.")
-            
+
             if existing_excel_files:
                 print("\nDeleting Excel files...")
                 deleted_count = 0
@@ -405,7 +412,7 @@ def reset_log():
                 print(f"\nDeletion complete. Total files deleted: {deleted_count}")
             else:
                 print("No files to delete.")
-        
+
         print("\nData recorder reset complete.")
 
 
