@@ -107,7 +107,7 @@ class BaseTrainer:
                 else:
                     raise
 
-        print('Finished training!')
+        print('base trainer  Finished training!')
 
     def train_epoch(self):
         raise NotImplementedError

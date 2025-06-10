@@ -42,7 +42,7 @@ class TrackingSampler(torch.utils.data.Dataset):
 
         # If selected_sampling is True, load the Excel file
         if self.selected_sampling:
-            self.excel_data = pd.read_excel('samples_log_epoch_2_all_sample_1_20.xlsx')
+            self.excel_data = pd.read_excel('ss_epoch_2_all_sample_1_100.xlsx')
             print(f"Loaded Excel file with {len(self.excel_data)} rows")
 
         # If p not provided, sample uniformly from all videos

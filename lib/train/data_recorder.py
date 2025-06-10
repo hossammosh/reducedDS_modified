@@ -13,7 +13,7 @@ from openpyxl.utils import get_column_letter
 import copy
 
 # --- Configuration ---
-_chunk_size = 20  # Save every 10,000 samples
+_chunk_size = 5  # Save every 10,000 samples
 _delete_chunks_after_merge = True  # Set to False to keep intermediate chunk files
 select_sampling = False
 # --- Global State (Protected by Lock) ---
@@ -22,7 +22,7 @@ _chunk_files = []
 _samples_in_buffer = 0
 _total_samples_logged_this_epoch = 0
 _current_epoch = None
-_file_lock = threading.Lock()
+_file_lock = threading.RLock()
 
 # Define headers based on the original structure
 _headers = [
@@ -37,9 +37,9 @@ def _get_chunk_filename(epoch, start_index, end_index):
     # Save in the root directory where the script is run
     global select_sampling
     if select_sampling:
-        return f'ss_epoch_{epoch}_selected_sample_{start_index}_{end_index}.xlsx'
+        return f'ss_epoch_{epoch}_all_selected_chunk_sample_{start_index}_{end_index}.xlsx'
     else:
-        return f'ss_epoch_{epoch}_sample_{start_index}_{end_index}.xlsx'
+        return f'ss_epoch_{epoch}_all_chunk_sample_{start_index}_{end_index}.xlsx'
 
 
 def _get_final_filename(epoch, total_samples):
@@ -98,10 +98,6 @@ def _format_excel_file(filename):
 
         # Set header row height
         ws.row_dimensions[1].height = 25
-        # Optionally set default row height for others if needed
-        # for i in range(2, ws.max_row + 1):
-        #     ws.row_dimensions[i].height = 20
-
         wb.save(filename)
         # print(f"Applied formatting to {filename}")
     except ImportError:
@@ -139,15 +135,9 @@ def _save_chunk(epoch, start_index, end_index, data_to_save):
         print(f"Error saving chunk {filename}: {e}")
 
 
-def set_sampling(enable):
-    """
-    Enable or disable selected sampling mode.
-    
-    Args:
-        enable (bool): If True, enables selected sampling mode.
-    """
+def set_sampling(ss):
     global select_sampling
-    select_sampling = enable
+    select_sampling = ss
     print(f"Selected sampling mode set to: {select_sampling}")
 
 
@@ -368,10 +358,11 @@ import glob  # Import glob for file pattern matching
 
 
 def reset_log():
-    """Resets the data recorder state and deletes previous log files."""
-    global _buffer, _chunk_files, _samples_in_buffer, _total_samples_logged_this_epoch, _current_epoch
+    """Resets the data recorder state and conditionally deletes previous log files based on sampling mode."""
+    global _buffer, _chunk_files, _samples_in_buffer, _total_samples_logged_this_epoch, _current_epoch, select_sampling
+    
     with _file_lock:
-        print("Resetting data recorder state and deleting old log files...")
+        print("Resetting data recorder state...")
         # Reset global state variables
         _buffer = []
         _chunk_files = []
@@ -379,28 +370,43 @@ def reset_log():
         _total_samples_logged_this_epoch = 0
         _current_epoch = None
 
-        # Delete old log files matching the patterns
-        deleted_count = 0
-        # Use glob to find matching files in the current directory (.)
-        chunk_pattern = "ss_epoch_*_sample_*.xlsx"
+        # Define file patterns to search for
+        chunk_pattern = "ss_epoch_*_all_chunk_sample_*.xlsx"
         final_pattern = "ss_epoch_*_all_sample_*.xlsx"
-
-        files_to_delete = glob.glob(chunk_pattern) + glob.glob(final_pattern)
-
-        if not files_to_delete:
-            print("No old log files found to delete.")
+        
+        # Find all matching files
+        existing_excel_files = glob.glob(chunk_pattern) + glob.glob(final_pattern)
+        
+        # Print the list of existing files
+        if existing_excel_files:
+            print("\nFound the following log files:")
+            for i, f in enumerate(existing_excel_files, 1):
+                print(f"  {i}. {os.path.basename(f)}")
+            print(f"\nTotal files found: {len(existing_excel_files)}")
         else:
-            print(f"Found {len(files_to_delete)} old log files to delete:")
-            for f in files_to_delete:
-                try:
-                    os.remove(f)
-                    print(f"  - Deleted: {f}")
-                    deleted_count += 1
-                except OSError as e:
-                    print(f"  - Error deleting file {f}: {e}")
-            print(f"Finished deleting old log files. Total deleted: {deleted_count}")
-
-        print("Data recorder reset complete.")
+            print("\nNo existing log files found.")
+        
+        # Check sampling mode and handle file deletion accordingly
+        if select_sampling:
+            print("\n Selected Sampling is ENABLED. Existing log files will be PRESERVED.")
+        else:
+            print("\n Selected Sampling is DISABLED. Existing log files will be DELETED.")
+            
+            if existing_excel_files:
+                print("\nDeleting Excel files...")
+                deleted_count = 0
+                for f in existing_excel_files:
+                    try:
+                        os.remove(f)
+                        print(f"  - Deleted: {os.path.basename(f)}")
+                        deleted_count += 1
+                    except OSError as e:
+                        print(f"  - Error deleting {os.path.basename(f)}: {e}")
+                print(f"\nDeletion complete. Total files deleted: {deleted_count}")
+            else:
+                print("No files to delete.")
+        
+        print("\nData recorder reset complete.")
 
 
 def save_gradients(model, sample_index, epoch, output_dir='gradients'):

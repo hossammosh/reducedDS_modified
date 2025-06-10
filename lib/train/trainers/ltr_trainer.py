@@ -60,8 +60,8 @@ class LTRTrainer(BaseTrainer):
 
 
         self.log_save = log_save
-        self.ss_permission = self.settings.ss_permission
-        self.save_gradients = self.settings.save_gradients
+        # self.ss_permission = self.settings.ss_permission
+        # self.save_gradients = self.settings.save_gradients
 
     def cycle_dataset(self, loader):
         """Do a cycle of training or validation."""
@@ -71,21 +71,25 @@ class LTRTrainer(BaseTrainer):
         self._init_timing()
         print('epoch no.= ', self.epoch)
 
-        current_epoch_idx = self.epoch - 1  # Convert to 0-based index
-        save_stats = self.ss_permission[current_epoch_idx]
-        if save_stats:
-            data_recorder.set_epoch(self.epoch)
-        save_gradients_this_epoch = self.save_gradients[current_epoch_idx]
+        # Ensure sampling mode is properly set at the start of each epoch
+        data_recorder.set_sampling(self.settings.selected_sampling)
+        print(f"Selected sampling mode: {self.settings.selected_sampling}")
 
-        print(f"  - samples_stats_save_permission  at this epoch= {save_stats}")
-        print(f"  - save_gradients at this epoch= {save_gradients_this_epoch}")
-        if save_gradients_this_epoch:
-            try:
-                self._grad_output_dir = os.path.join(self.settings.env.workspace_dir, 'gradients')
-                print(f"Gradient saving is ENABLED for this epoch. Gradients will be saved to: {self._grad_output_dir}")
-                # print("no")
-            except Exception as e:
-                print(f"Error initializing gradient saving: {e}")
+        current_epoch_idx = self.epoch - 1  # Convert to 0-based index
+        # Always set the epoch, regardless of sampling mode
+        data_recorder.set_epoch(self.epoch)
+        save_stats_permission = not (self.settings.selected_sampling and self.epoch == 2)
+        #save_gradients_this_epoch = self.save_gradients[current_epoch_idx]
+
+        print(f"  - samples_stats_save_permission  at this epoch= {save_stats_permission}")
+        print(f"  - save_gradients at this epoch= {save_stats_permission}")
+        # if save_stats_permission: #related to the gradient not yet impelemnted
+        #     try:
+        #         self._grad_output_dir = os.path.join(self.settings.env.workspace_dir, 'gradients')
+        #         print(f"Gradient saving is ENABLED for this epoch. Gradients will be saved to: {self._grad_output_dir}")
+        #         # print("no")
+        #     except Exception as e:
+        #         print(f"Error initializing gradient saving: {e}")
 
         # Initialize timing
         self.last_time_print = time.time()
@@ -109,7 +113,7 @@ class LTRTrainer(BaseTrainer):
 
             # Forward pass
             loss, stats = self.actor(data)
-            if save_stats:
+            if save_stats_permission:
                 try:
                     data_recorder.samples_stats_save(
                         sample_index=sample_index,
@@ -121,7 +125,7 @@ class LTRTrainer(BaseTrainer):
                     print(f"Error saving sample statistics: {e}")
 
             # Backward pass and parameter updates (only if not in stats saving mode)
-            if loader.training and not save_stats:
+            if loader.training and not save_stats_permission:
                 self.optimizer.zero_grad()
                 if not self.use_amp:
                     loss.backward()
@@ -145,41 +149,61 @@ class LTRTrainer(BaseTrainer):
     def train_epoch(self):
         for loader in self.loaders:
             self.cycle_dataset(loader)
-
         self._stats_new_epoch()
+        if self.settings.local_rank in [-1, 0]:
+            self._write_tensorboard()
 
+    # def _stats_new_epoch(self):
+    #     ss_permission = self.settings.ss_permission
+    #     current_epoch_idx = self.epoch - 1  # Convert to 0-based index
+    #     save_stats = ss_permission[min(current_epoch_idx, len(ss_permission) - 1)]
+    #
+    #     if save_stats and self.settings.local_rank in [-1, 0]:
+    #         print(f"--- ltr_trainer: Finalizing data recording for epoch {self.epoch} ---")
+    #         data_recorder.finalize_epoch(self.epoch)
+    #         print(f"--- ltr_trainer: Data recording finalized for epoch {self.epoch} ---")
+    #
+    #     # Record learning rate
+    #     for loader in self.loaders:
+    #         if loader.training:
+    #             try:
+    #                 # Correct way to get LR in newer PyTorch versions
+    #                 lr_list = [param_group['lr'] for param_group in self.optimizer.param_groups]
+    #             except AttributeError:
+    #                 # Fallback for older versions or different schedulers
+    #                 try:
+    #                     lr_list = self.lr_scheduler.get_lr()
+    #                 except AttributeError:
+    #                     # Handle cases where scheduler might not have get_lr or _get_lr
+    #                     try:
+    #                         lr_list = self.lr_scheduler._get_lr(self.epoch)
+    #                     except Exception as e:
+    #                         print(f"Could not retrieve learning rate: {e}")
+    #                         lr_list = [self.optimizer.param_groups[0]['lr']]  # Default to first group LR
+    #
+    #             for i, lr in enumerate(lr_list):
+    #                 var_name = 'LearningRate/group{}'.format(i)
+    #                 if loader.name not in self.stats or self.stats[loader.name] is None:
+    #                     self.stats[loader.name] = OrderedDict()
+    #                 if var_name not in self.stats[loader.name].keys():
+    #                     self.stats[loader.name][var_name] = StatValue()
+    #                 self.stats[loader.name][var_name].update(lr)
+    #
+    #     for loader_stats in self.stats.values():
+    #         if loader_stats is None:
+    #             continue
+    #         for stat_value in loader_stats.values():
+    #             if hasattr(stat_value, 'new_epoch'):
+    #                 stat_value.new_epoch()
     def _stats_new_epoch(self):
-        ss_permission = self.settings.ss_permission
-        current_epoch_idx = self.epoch - 1  # Convert to 0-based index
-        save_stats = ss_permission[min(current_epoch_idx, len(ss_permission) - 1)]
-
-        if save_stats and self.settings.local_rank in [-1, 0]:
-            print(f"--- ltr_trainer: Finalizing data recording for epoch {self.epoch} ---")
-            data_recorder.finalize_epoch(self.epoch)
-            print(f"--- ltr_trainer: Data recording finalized for epoch {self.epoch} ---")
-
-        # Record learning rate
         for loader in self.loaders:
             if loader.training:
                 try:
-                    # Correct way to get LR in newer PyTorch versions
-                    lr_list = [param_group['lr'] for param_group in self.optimizer.param_groups]
-                except AttributeError:
-                    # Fallback for older versions or different schedulers
-                    try:
-                        lr_list = self.lr_scheduler.get_lr()
-                    except AttributeError:
-                        # Handle cases where scheduler might not have get_lr or _get_lr
-                        try:
-                            lr_list = self.lr_scheduler._get_lr(self.epoch)
-                        except Exception as e:
-                            print(f"Could not retrieve learning rate: {e}")
-                            lr_list = [self.optimizer.param_groups[0]['lr']]  # Default to first group LR
-
+                    lr_list = self.lr_scheduler.get_lr()
+                except:
+                    lr_list = self.lr_scheduler._get_lr(self.epoch)
                 for i, lr in enumerate(lr_list):
                     var_name = 'LearningRate/group{}'.format(i)
-                    if loader.name not in self.stats or self.stats[loader.name] is None:
-                        self.stats[loader.name] = OrderedDict()
                     if var_name not in self.stats[loader.name].keys():
                         self.stats[loader.name][var_name] = StatValue()
                     self.stats[loader.name][var_name].update(lr)

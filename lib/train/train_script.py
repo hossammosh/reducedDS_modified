@@ -19,7 +19,7 @@ import lib.train.data_recorder as data_recorder
 
 def run(settings):
     settings.description = 'Training script for SeqTrack'
-    data_recorder.reset_log()
+
     # update the default configs with config file
     if not os.path.exists(settings.cfg_file):
         raise ValueError("%s doesn't exist." % settings.cfg_file)
@@ -34,6 +34,8 @@ def run(settings):
 
     # update settings based on cfg
     update_settings(settings, cfg)
+    data_recorder.set_sampling(settings.selected_sampling)
+    data_recorder.reset_log()
 
     # Record the training log
     log_dir = os.path.join(settings.save_dir, 'logs')

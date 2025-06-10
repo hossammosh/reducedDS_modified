@@ -31,7 +31,7 @@ DATA:
 #    - 1
 #    - 1
 #    - 1
-    SAMPLE_PER_EPOCH: 100
+    SAMPLE_PER_EPOCH: 20
 MODEL:
   ENCODER:
     TYPE: vit_base_patch16
@@ -44,7 +44,7 @@ MODEL:
 TRAIN:
   ENCODER_MULTIPLIER: 0.1
   BATCH_SIZE: 1
-  EPOCH: 2
+  EPOCH: 3
   GRAD_CLIP_NORM: 0.1
   CE_WEIGHT: 1.0
   LR: 0.0001
@@ -57,8 +57,8 @@ TRAIN:
   WEIGHT_DECAY: 0.0001
   ss_print_interval: 20
   checkpoint_save_interval: 1
-  samples_stats_save_permission: [ false, true ] # samples_stats_save_permission   ,false, true]  # First epoch: false (train), Second epoch: true (save stats)
-  save_gradients: [ false, true ] #,fal
+  #samples_stats_save_permission: [ false, true ] # samples_stats_save_permission   ,false, true]  # First epoch: false (train), Second epoch: true (save stats)
+  #save_gradients: [ false, true ] #,fal
   selected_sampling: false
 TEST:
   EPOCH: 1
