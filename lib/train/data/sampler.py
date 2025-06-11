@@ -1,5 +1,6 @@
 import random
 import torch.utils.data
+import lib.train.data_recorder as data_recorder
 from lib.utils import TensorDict
 import numpy as np
 import pandas as pd
@@ -21,7 +22,7 @@ class TrackingSampler(torch.utils.data.Dataset):
 
     def __init__(self, datasets, p_datasets, samples_per_epoch, max_gap,
                  num_search_frames, num_template_frames=1, processing=no_processing, frame_sample_mode='causal',
-                 train_cls=False, pos_prob=0.5, selected_sampling=False):
+                 train_cls=False, pos_prob=0.5,  settings=None):
         """
         args:
             datasets - List of datasets to be used for training
@@ -34,16 +35,21 @@ class TrackingSampler(torch.utils.data.Dataset):
             frame_sample_mode - 'causal', 'interval', or 'order'.
             train_cls - this is for Stark-ST, should be False for SeqTrack.
             selected_sampling - Whether to use selected sampling mode (default: False).
+            settings - Training settings object containing configuration (default: None).
         """
         self.datasets = datasets
         self.train_cls = train_cls  # whether we are training classification
         self.pos_prob = pos_prob  # probability of sampling positive class when making classification
-        self.selected_sampling = selected_sampling  # whether to use selected sampling mode
+        self.selected_sampling = settings.selected_sampling
+        self.selected_sampling_epoch = settings.selected_sampling_epoch
+        #self.current_epoch = settings.current_epoch
 
-        # If selected_sampling is True, load the Excel file
+        # If selected_sampling is True, load the Excel file with the correct epoch
         if self.selected_sampling:
-            self.excel_data = pd.read_excel('ss_epoch_2_all_sample_1_100.xlsx')
-            print(f"Loaded Excel file with {len(self.excel_data)} rows")
+            settings.selected_sampling_epoch=2
+            excel_filename = data_recorder._get_final_filename_unselected(settings.selected_sampling_epoch, settings.sample_per_epoch)
+            self.excel_data = pd.read_excel(excel_filename)
+            print(f"Loaded Excel file: {excel_filename} with {len(self.excel_data)} rows")
 
         # If p not provided, sample uniformly from all videos
         if p_datasets is None:
@@ -308,7 +314,7 @@ class TrackingSampler(torch.utils.data.Dataset):
 
             count_valid += 1
             if count_valid > 200:
-                print("too large count_valid")
+                print("too large count")
                 print(str(count_valid))
 
         return data, data_info

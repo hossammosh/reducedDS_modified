@@ -70,10 +70,9 @@ class LTRTrainer(BaseTrainer):
         # Ensure sampling mode is properly set at the start of each epoch
         data_recorder.set_sampling(self.settings.selected_sampling)
         print(f"Selected sampling mode: {self.settings.selected_sampling}")
-        current_epoch_idx = self.epoch - 1  # Convert to 0-based index
+        #current_epoch_idx = self.epoch - 1  # Convert to 0-based index
         data_recorder.set_epoch(self.epoch,settings=self.settings)
-        # if(self.settings.max_epochs==self.epoch):
-        #     data_recorder.finalize_epoch(self.epoch)
+
         save_stats_permission = not (self.settings.selected_sampling and self.epoch == 2)
         print(f"  - samples_stats_save_permission  at this epoch= {save_stats_permission}")
         print(f"  - save_gradients at this epoch= {save_stats_permission}")

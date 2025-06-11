@@ -46,9 +46,8 @@ cfg.TRAIN.SCHEDULER.DECAY_RATE = 0.1
 cfg.TRAIN.log_sample_stats_interval  = 50
 cfg.TRAIN.ss_print_interval  = 10
 cfg.TRAIN.checkpoint_save_interval =1
-#cfg.TRAIN.samples_stats_save_permission = [False, False]  # Default value
-#cfg.TRAIN.save_gradients = [False, False]  # Default value
 cfg.TRAIN.selected_sampling=False
+cfg.TRAIN.selected_sampling_epoch=2
 # DATA
 cfg.DATA = edict()
 cfg.DATA.MEAN = [0.485, 0.456, 0.406]

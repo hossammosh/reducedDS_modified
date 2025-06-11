@@ -29,6 +29,7 @@ def update_settings(settings, cfg):
     #settings.save_gradients = getattr(cfg.TRAIN, "save_gradients")
     settings.checkpoint_save_interval = getattr(cfg.TRAIN, "checkpoint_save_interval")
     settings.selected_sampling = getattr(cfg.TRAIN, "selected_sampling", False)
+    settings.selected_sampling_epoch = getattr(cfg.TRAIN, "selected_sampling_epoch")  # Default to epoch 2 if not specified
     settings.max_epochs = getattr(cfg.TRAIN, "EPOCH")  # Default to 300 if not specified
     settings.sample_per_epoch = getattr(cfg.DATA.TRAIN, "SAMPLE_PER_EPOCH")
 
@@ -118,10 +119,12 @@ def build_dataloaders(cfg, settings):
     dataset_train = sampler.TrackingSampler(datasets=names2datasets(cfg.DATA.TRAIN.DATASETS_NAME, settings, opencv_loader),
                                             p_datasets=cfg.DATA.TRAIN.DATASETS_RATIO,
                                             samples_per_epoch=cfg.DATA.TRAIN.SAMPLE_PER_EPOCH,
-                                            max_gap=cfg.DATA.MAX_SAMPLE_INTERVAL, num_search_frames=settings.num_search,
-                                            num_template_frames=settings.num_template, processing=data_processing_train,
+                                            max_gap=cfg.DATA.MAX_SAMPLE_INTERVAL, 
+                                            num_search_frames=settings.num_search,
+                                            num_template_frames=settings.num_template, 
+                                            processing=data_processing_train,
                                             frame_sample_mode=sampler_mode,
-                                            selected_sampling=cfg.TRAIN.selected_sampling
+                                            settings=settings
                                             )
     #a = dataset_train[5]
 

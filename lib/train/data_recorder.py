@@ -38,17 +38,20 @@ def _get_chunk_filename(epoch, start_index, end_index):
     # Save in the root directory where the script is run
     global select_sampling
     if select_sampling:
-        return f'ss_epoch_{epoch}_all_selected_chunk_sample_{start_index}_{end_index}.xlsx'
+        return f'sample_stats_epoch_{epoch}_all_selected_chunk_sample_{start_index}_{end_index}.xlsx'
     else:
-        return f'ss_epoch_{epoch}_all_chunk_sample_{start_index}_{end_index}.xlsx'
+        return f'sample_stats_epoch_{epoch}_all_chunk_sample_{start_index}_{end_index}.xlsx'
 
 def _get_final_filename(epoch, total_samples):
     # Save in the root directory where the script is run
     global select_sampling
     if select_sampling:
-        return f'ss_epoch_{epoch}_all_selected_sample_1_{total_samples}.xlsx'
+        return f'sample_stats_epoch_{epoch}_all_selected_sample_1_{total_samples}.xlsx'
     else:
-        return f'ss_epoch_{epoch}_all_sample_1_{total_samples}.xlsx'
+        return f'sample_stats_epoch_{epoch}_all_sample_1_{total_samples}.xlsx'
+
+def _get_final_filename_unselected(epoch, total_samples):
+        return f'sample_stats_epoch_{epoch}_all_sample_1_{total_samples}.xlsx'
 
 # --- Helper Functions ---
 def _safe_str_list(value):
@@ -135,8 +138,8 @@ def _clean_previous_experiments():
     print("Cleaning up previous experiment files...")
     
     # Define file patterns to search for
-    chunk_pattern = "ss_epoch_*_all*_chunk_sample_*.xlsx"
-    final_pattern = "ss_epoch_*_all*_sample_*.xlsx"
+    chunk_pattern = "sample_stats_epoch_*_all*_chunk_sample_*.xlsx"
+    final_pattern = "sample_stats_epoch_*_all*_sample_*.xlsx"
     
     # Find all matching files
     existing_files = glob.glob(chunk_pattern) + glob.glob(final_pattern)
