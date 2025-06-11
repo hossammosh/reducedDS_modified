@@ -29,6 +29,8 @@ def update_settings(settings, cfg):
     #settings.save_gradients = getattr(cfg.TRAIN, "save_gradients")
     settings.checkpoint_save_interval = getattr(cfg.TRAIN, "checkpoint_save_interval")
     settings.selected_sampling = getattr(cfg.TRAIN, "selected_sampling", False)
+    settings.max_epochs = getattr(cfg.TRAIN, "EPOCH")  # Default to 300 if not specified
+    settings.sample_per_epoch = getattr(cfg.DATA.TRAIN, "SAMPLE_PER_EPOCH")
 
 
 def names2datasets(name_list: list, settings, image_loader):

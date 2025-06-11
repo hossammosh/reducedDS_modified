@@ -57,8 +57,6 @@ class LTRTrainer(BaseTrainer):
         # ----- NEW: Initialize iteration counter for Excel logging frequency -----
         self.iteration_counter = 0
         data_recorder.set_sampling(settings.selected_sampling)
-
-
         self.log_save = log_save
 
     def cycle_dataset(self, loader):
@@ -72,10 +70,10 @@ class LTRTrainer(BaseTrainer):
         # Ensure sampling mode is properly set at the start of each epoch
         data_recorder.set_sampling(self.settings.selected_sampling)
         print(f"Selected sampling mode: {self.settings.selected_sampling}")
-
         current_epoch_idx = self.epoch - 1  # Convert to 0-based index
-        # Always set the epoch, regardless of sampling mode
-        data_recorder.set_epoch(self.epoch)
+        data_recorder.set_epoch(self.epoch,settings=self.settings)
+        # if(self.settings.max_epochs==self.epoch):
+        #     data_recorder.finalize_epoch(self.epoch)
         save_stats_permission = not (self.settings.selected_sampling and self.epoch == 2)
         print(f"  - samples_stats_save_permission  at this epoch= {save_stats_permission}")
         print(f"  - save_gradients at this epoch= {save_stats_permission}")
@@ -141,48 +139,6 @@ class LTRTrainer(BaseTrainer):
         if self.settings.local_rank in [-1, 0]:
             self._write_tensorboard()
 
-    # def _stats_new_epoch(self):
-    #     ss_permission = self.settings.ss_permission
-    #     current_epoch_idx = self.epoch - 1  # Convert to 0-based index
-    #     save_stats = ss_permission[min(current_epoch_idx, len(ss_permission) - 1)]
-    #
-    #     if save_stats and self.settings.local_rank in [-1, 0]:
-    #         print(f"--- ltr_trainer: Finalizing data recording for epoch {self.epoch} ---")
-    #         data_recorder.finalize_epoch(self.epoch)
-    #         print(f"--- ltr_trainer: Data recording finalized for epoch {self.epoch} ---")
-    #
-    #     # Record learning rate
-    #     for loader in self.loaders:
-    #         if loader.training:
-    #             try:
-    #                 # Correct way to get LR in newer PyTorch versions
-    #                 lr_list = [param_group['lr'] for param_group in self.optimizer.param_groups]
-    #             except AttributeError:
-    #                 # Fallback for older versions or different schedulers
-    #                 try:
-    #                     lr_list = self.lr_scheduler.get_lr()
-    #                 except AttributeError:
-    #                     # Handle cases where scheduler might not have get_lr or _get_lr
-    #                     try:
-    #                         lr_list = self.lr_scheduler._get_lr(self.epoch)
-    #                     except Exception as e:
-    #                         print(f"Could not retrieve learning rate: {e}")
-    #                         lr_list = [self.optimizer.param_groups[0]['lr']]  # Default to first group LR
-    #
-    #             for i, lr in enumerate(lr_list):
-    #                 var_name = 'LearningRate/group{}'.format(i)
-    #                 if loader.name not in self.stats or self.stats[loader.name] is None:
-    #                     self.stats[loader.name] = OrderedDict()
-    #                 if var_name not in self.stats[loader.name].keys():
-    #                     self.stats[loader.name][var_name] = StatValue()
-    #                 self.stats[loader.name][var_name].update(lr)
-    #
-    #     for loader_stats in self.stats.values():
-    #         if loader_stats is None:
-    #             continue
-    #         for stat_value in loader_stats.values():
-    #             if hasattr(stat_value, 'new_epoch'):
-    #                 stat_value.new_epoch()
     def _stats_new_epoch(self):
         for loader in self.loaders:
             if loader.training:

@@ -35,7 +35,7 @@ def run(settings):
     # update settings based on cfg
     update_settings(settings, cfg)
     data_recorder.set_sampling(settings.selected_sampling)
-    data_recorder.reset_log()
+    # data_recorder.set_epoch(1)
 
     # Record the training log
     log_dir = os.path.join(settings.save_dir, 'logs')
@@ -87,6 +87,7 @@ def run(settings):
     # Add log_save parameter from config, default is False
     log_save = getattr(cfg.TRAIN, "LOG_SAVE", False)
 
+    #trainer = LTRTrainer(actor, [loader_train], optimizer, settings, lr_scheduler, use_amp=use_amp, log_save=log_save)
     trainer = LTRTrainer(actor, [loader_train], optimizer, settings, lr_scheduler, use_amp=use_amp, log_save=log_save)
 
     # train process

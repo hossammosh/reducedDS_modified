@@ -11,6 +11,7 @@ import torch
 from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
 import copy
+import glob  # Import glob for file pattern matching
 
 # --- Configuration ---
 _chunk_size = 5  # Save every 10,000 samples
@@ -23,7 +24,7 @@ _samples_in_buffer = 0
 _total_samples_logged_this_epoch = 0
 _current_epoch = None
 _file_lock = threading.RLock()
-
+sample_per_epoch=0
 # Define headers based on the original structure
 _headers = [
     "Index", "Sample Index", "stats/Loss_total", "stats_IoU", "Seq Name",
@@ -41,7 +42,6 @@ def _get_chunk_filename(epoch, start_index, end_index):
     else:
         return f'ss_epoch_{epoch}_all_chunk_sample_{start_index}_{end_index}.xlsx'
 
-
 def _get_final_filename(epoch, total_samples):
     # Save in the root directory where the script is run
     global select_sampling
@@ -49,7 +49,6 @@ def _get_final_filename(epoch, total_samples):
         return f'ss_epoch_{epoch}_all_selected_sample_1_{total_samples}.xlsx'
     else:
         return f'ss_epoch_{epoch}_all_sample_1_{total_samples}.xlsx'
-
 
 # --- Helper Functions ---
 def _safe_str_list(value):
@@ -61,7 +60,6 @@ def _safe_str_list(value):
         return ""
     else:
         return str(value)
-
 
 def _format_excel_file(filename):
     """Applies basic formatting (alignment, column width) to an Excel file."""
@@ -99,12 +97,10 @@ def _format_excel_file(filename):
         # Set header row height
         ws.row_dimensions[1].height = 25
         wb.save(filename)
-        # print(f"Applied formatting to {filename}")
     except ImportError:
         print("Warning: openpyxl not found. Cannot apply Excel formatting.")
     except Exception as e:
         print(f"Error formatting Excel file {filename}: {e}")
-
 
 # --- Core Logic ---
 def _save_chunk(epoch, start_index, end_index, data_to_save):
@@ -116,7 +112,6 @@ def _save_chunk(epoch, start_index, end_index, data_to_save):
 
     filename = _get_chunk_filename(epoch, start_index, end_index)
     print(f"Saving chunk {start_index}-{end_index} for epoch {epoch} to {filename}...")
-
     try:
         df = pd.DataFrame(data_to_save)
         # Ensure columns are in the correct order
@@ -124,18 +119,112 @@ def _save_chunk(epoch, start_index, end_index, data_to_save):
 
         # Save using pandas, specifying the engine
         df.to_excel(filename, index=False, engine='openpyxl')
-
         # Apply formatting after saving
         _format_excel_file(filename)
-
         _chunk_files.append(filename)
         print(f"Successfully saved and formatted chunk: {filename}")
-        # if(end_index==sample_per_epoch):
-        #     print(f"Saving final file")
-        #     finalize_epoch(epoch)
-
     except Exception as e:
         print(f"Error saving chunk {filename}: {e}")
+
+def _clean_previous_experiments():
+    """
+    Cleans up all previous experiment files (both chunk and final files).
+    This is called at the start of the first epoch.
+    """
+    global select_sampling
+    print("Cleaning up previous experiment files...")
+    
+    # Define file patterns to search for
+    chunk_pattern = "ss_epoch_*_all*_chunk_sample_*.xlsx"
+    final_pattern = "ss_epoch_*_all*_sample_*.xlsx"
+    
+    # Find all matching files
+    existing_files = glob.glob(chunk_pattern) + glob.glob(final_pattern)
+    
+    # Print the list of existing files
+    if existing_files:
+        print("\nFound the following log files:")
+        for i, f in enumerate(existing_files, 1):
+            print(f"  {i}. {os.path.basename(f)}")
+        print(f"\nTotal files found: {len(existing_files)}")
+        
+        # Delete all found files if not in select_sampling mode
+        if not select_sampling:
+            print("\nDeleting Excel files...")
+            deleted_count = 0
+            for f in existing_files:
+                try:
+                    os.remove(f)
+                    print(f"  - Deleted: {os.path.basename(f)}")
+                    deleted_count += 1
+                except OSError as e:
+                    print(f"  - Error deleting {os.path.basename(f)}: {e}")
+            print(f"\nDeletion complete. Total files deleted: {deleted_count}")
+        else:
+            print("\nSelected Sampling is ENABLED. Existing log files will be PRESERVED.")
+    else:
+        print("\nNo existing log files found.")
+def _merge_chunks(epoch, total_samples):
+    """
+    Merges all chunk files for the current epoch into a single file.
+    
+    Args:
+        epoch: Current epoch number
+        total_samples: Total number of samples in the epoch
+    """
+    global _chunk_files
+    
+    if not _chunk_files:
+        print("No chunk files to merge.")
+        return
+        
+    print(f"Merging {len(_chunk_files)} chunk files for epoch {epoch}...")
+    all_data_frames = []
+    
+    for chunk_file in _chunk_files:
+        try:
+            df = pd.read_excel(chunk_file, engine='openpyxl')
+            all_data_frames.append(df)
+        except Exception as e:
+            print(f"Error reading chunk file {chunk_file}: {e}. Skipping this chunk.")
+    
+    if not all_data_frames:
+        print("Error: No valid data found in chunk files. Cannot merge.")
+        return
+    
+    # Concatenate all dataframes
+    final_df = pd.concat(all_data_frames, ignore_index=True)
+    final_df = final_df.reindex(columns=_headers)
+    
+    # Save the final merged file
+    final_filename = _get_final_filename(epoch, total_samples)
+    try:
+        final_df.to_excel(final_filename, index=False, engine='openpyxl')
+        _format_excel_file(final_filename)
+        print(f"Successfully merged chunks into final file: {final_filename}")
+    except Exception as e:
+        print(f"Error saving final merged file: {e}")
+
+
+def _cleanup_chunk_files():
+    """Removes all chunk files after they've been merged."""
+    global _chunk_files
+    
+    if not _chunk_files:
+        return
+        
+    print("Cleaning up chunk files...")
+    deleted_count = 0
+    for chunk_file in _chunk_files:
+        try:
+            if os.path.exists(chunk_file):
+                os.remove(chunk_file)
+                deleted_count += 1
+        except Exception as e:
+            print(f"Error removing chunk file {chunk_file}: {e}")
+    
+    print(f"Removed {deleted_count} chunk files.")
+    _chunk_files = []
 
 
 def set_sampling(ss):
@@ -144,16 +233,19 @@ def set_sampling(ss):
     print(f"Selected sampling mode set to: {select_sampling}")
 
 
-def set_epoch(epoch_number):
-    """Sets the current epoch, clearing buffers and state for the new epoch."""
-    global _current_epoch, _buffer, _samples_in_buffer, _chunk_files, _total_samples_logged_this_epoch
+def set_epoch(epoch_number, settings):
+    """
+    Sets the current epoch, clearing buffers and state for the new epoch.
+    If epoch_number is 1, also cleans up any previous experiment files.
+    """
+    global _current_epoch, _buffer, _samples_in_buffer, _chunk_files, _total_samples_logged_this_epoch,sample_per_epoch
+    
     with _file_lock:
-        if _current_epoch is not None and _current_epoch != epoch_number:
-            # If finalize_epoch wasn't called by the trainer, call it defensively.
-            print(
-                f"Warning: Starting epoch {epoch_number} but previous epoch {_current_epoch} was not explicitly finalized. Finalizing {_current_epoch} now.")
-            finalize_epoch(_current_epoch)
-
+        # Clean up previous experiments if this is the first epoch or if we're reinitializing
+        if epoch_number == 1 or _current_epoch is None:
+            sample_per_epoch = settings.sample_per_epoch
+            _clean_previous_experiments()
+        
         print(f"Setting data recorder for epoch {epoch_number}. Clearing state.")
         _current_epoch = epoch_number
         _buffer = []
@@ -171,23 +263,14 @@ def samples_stats_save(sample_index: int, data_info: dict, stats: dict):
         data_info: Dictionary containing sample information
         stats: Dictionary containing sample statistics
     """
-    global _buffer, _samples_in_buffer, _total_samples_logged_this_epoch
+    global _buffer, _samples_in_buffer, _total_samples_logged_this_epoch, _chunk_files
 
     # Determine epoch (should be set by trainer via set_epoch or passed in data_info)
-    epoch = data_info.get('epoch', _current_epoch)
+    epoch = _current_epoch
     if epoch is None:
         print("Error: Epoch not set in data_recorder. Cannot log data. Call set_epoch() first.")
         return
-    # Ensure consistency if epoch changes unexpectedly mid-stream
-    if epoch != _current_epoch:
-        print(
-            f"Warning: Logging data for epoch {epoch}, but recorder's current epoch is {_current_epoch}. Attempting to switch epoch.")
-        set_epoch(epoch)
-
-    # Prepare the data entry as a dictionary
-    loss_total = stats.get("Loss/total", None)
-    iou = stats.get("IoU", None)
-
+    
     with _file_lock:
         _total_samples_logged_this_epoch += 1
         current_log_index = _total_samples_logged_this_epoch
@@ -196,8 +279,8 @@ def samples_stats_save(sample_index: int, data_info: dict, stats: dict):
         log_entry = {
             "Index": current_log_index,
             "Sample Index": sample_index,
-            "stats/Loss_total": loss_total,
-            "stats_IoU": iou,
+            "stats/Loss_total": stats.get("Loss/total", None),
+            "stats_IoU": stats.get("IoU", None),
             "Seq Name": data_info.get("seq_name", ""),
             "Template Frame ID": _safe_str_list(data_info.get("template_ids")),
             "Template Frame Path": _safe_str_list(data_info.get("template_path")),
@@ -213,204 +296,16 @@ def samples_stats_save(sample_index: int, data_info: dict, stats: dict):
         _buffer.append(log_entry)
         _samples_in_buffer += 1
 
-        # Check if the buffer is full and needs to be saved as a chunk
+        # Save chunk if buffer is full or if this is the last chunk
         if _samples_in_buffer >= _chunk_size:
             start_index = current_log_index - _samples_in_buffer + 1
             end_index = current_log_index
-            # Save the current buffer and clear it
             _save_chunk(epoch, start_index, end_index, _buffer)
+            if(sample_per_epoch==end_index):
+                _merge_chunks(epoch, _total_samples_logged_this_epoch)
+                _cleanup_chunk_files()
             _buffer = []
             _samples_in_buffer = 0
-
-
-def finalize_epoch(epoch):
-    """Finalizes logging for the epoch: saves remaining buffer, merges chunks, cleans up."""
-    global _buffer, _samples_in_buffer, _chunk_files, _total_samples_logged_this_epoch, _current_epoch
-
-    with _file_lock:
-        # Validate the epoch number
-        if epoch is None:
-            print("Error: Cannot finalize epoch, epoch number is None.")
-            return
-        if epoch != _current_epoch:
-            print(
-                f"Warning: Finalizing epoch {epoch}, but recorder's current epoch is {_current_epoch}. Finalization might use data from the wrong epoch if not careful.")
-            # We proceed, assuming the caller knows which epoch to finalize.
-
-        print(
-            f"Finalizing data logging for epoch {epoch} (Total samples logged: {_total_samples_logged_this_epoch})...")
-
-        # 1. Save any remaining data in the buffer as the last chunk
-        if _samples_in_buffer > 0:
-            start_index = _total_samples_logged_this_epoch - _samples_in_buffer + 1
-            end_index = _total_samples_logged_this_epoch
-            print(f"Saving final buffer chunk ({_samples_in_buffer} samples) for epoch {epoch}...")
-            _save_chunk(epoch, start_index, end_index, _buffer)
-            _buffer = []  # Clear buffer after saving
-            _samples_in_buffer = 0
-        else:
-            print("No samples remaining in buffer.")
-
-        # 2. Merge chunk files if any exist
-        if not _chunk_files:
-            print(f"No chunk files were created for epoch {epoch}. Nothing to merge.")
-            # Reset state for the possibility of starting a new epoch later
-            _current_epoch = None  # Mark as no longer active
-            return
-
-        print(f"Merging {_chunk_files} chunk files for epoch {epoch}...")
-        all_data_frames = []
-        for chunk_file in _chunk_files:
-            try:
-                print(f"Reading chunk file: {chunk_file}")
-                df = pd.read_excel(chunk_file, engine='openpyxl')
-                all_data_frames.append(df)
-            except Exception as e:
-                print(f"Error reading chunk file {chunk_file}: {e}. Skipping this chunk.")
-
-        if not all_data_frames:
-            print(
-                f"Error: Failed to read any valid data from chunk files for epoch {epoch}. Final merged file cannot be created.")
-            # Optionally clean up failed chunks? For now, leave them.
-            _chunk_files = []
-            _current_epoch = None
-            return
-
-        # Concatenate all dataframes
-        print("Concatenating dataframes...")
-        final_df = pd.concat(all_data_frames, ignore_index=True)
-
-        # Verify and reorder columns just in case
-        final_df = final_df.reindex(columns=_headers)
-
-        # Determine final filename
-        final_filename = _get_final_filename(epoch, _total_samples_logged_this_epoch)
-        print(f"Saving final merged file to: {final_filename}")
-
-        try:
-            # Save the final merged dataframe
-            final_df.to_excel(final_filename, index=False, engine='openpyxl')
-
-            # Apply formatting to the final merged file
-            _format_excel_file(final_filename)
-
-            print(f"Successfully merged chunks into final file: {final_filename}")
-
-            # 3. Clean up chunk files (optional)
-            if _delete_chunks_after_merge:
-                print("Cleaning up intermediate chunk files...")
-                deleted_count = 0
-                for chunk_file in _chunk_files:
-                    try:
-                        os.remove(chunk_file)
-                        # print(f"Removed chunk file: {chunk_file}")
-                        deleted_count += 1
-                    except Exception as e:
-                        print(f"Error removing chunk file {chunk_file}: {e}")
-                print(f"Removed {deleted_count} chunk files.")
-            else:
-                print("Intermediate chunk files were kept.")
-
-        except Exception as e:
-            print(f"Error saving or formatting final merged file {final_filename}: {e}")
-
-        finally:
-            # 4. Reset state after finalization
-            _chunk_files = []
-            _buffer = []
-            _samples_in_buffer = 0
-            _total_samples_logged_this_epoch = 0
-            _current_epoch = None  # Mark epoch as finalized
-            print(f"Finalization process complete for epoch {epoch}.")
-
-
-# Example Usage (for testing purposes, not part of the library integration)
-if __name__ == '__main__':
-    print("Running data_recorder example...")
-    # Simulate usage across two epochs
-    num_samples_epoch_1 = 25000
-    num_samples_epoch_2 = 5000
-
-    # --- Epoch 1 ---
-    print("\n--- Starting Epoch 1 ---")
-    set_epoch(1)
-    for i in range(1, num_samples_epoch_1 + 1):
-        mock_data_info = {'epoch': 1, 'seq_name': f'seq_{i}', 'template_ids': [f't{i}a', f't{i}b'],
-                          'search_id': f's{i}'}
-        mock_stats = {'Loss/total': random.random(), 'IoU': random.random() * 0.8}
-        samples_stats_save(i, mock_data_info, mock_stats)
-        if i % 5000 == 0:
-            print(f"Logged sample {i}/{num_samples_epoch_1} for epoch 1")
-    finalize_epoch(1)
-
-    # --- Epoch 2 ---
-    print("\n--- Starting Epoch 2 ---")
-    set_epoch(2)
-    for i in range(1, num_samples_epoch_2 + 1):
-        mock_data_info = {'epoch': 2, 'seq_name': f'seq_{i + 100}', 'template_ids': [f't{i + 100}a', f't{i + 100}b'],
-                          'search_id': f's{i + 100}'}
-        mock_stats = {'Loss/total': random.random() * 0.5, 'IoU': random.random() * 0.9}
-        samples_stats_save(i, mock_data_info, mock_stats)
-        if i % 1000 == 0:
-            print(f"Logged sample {i}/{num_samples_epoch_2} for epoch 2")
-    finalize_epoch(2)
-
-    print("\nData recorder example finished.")
-
-import glob  # Import glob for file pattern matching
-
-
-def reset_log():
-    """Resets the data recorder state and conditionally deletes previous log files based on sampling mode."""
-    global _buffer, _chunk_files, _samples_in_buffer, _total_samples_logged_this_epoch, _current_epoch, select_sampling
-
-    with _file_lock:
-        print("Resetting data recorder state...")
-        # Reset global state variables
-        _buffer = []
-        _chunk_files = []
-        _samples_in_buffer = 0
-        _total_samples_logged_this_epoch = 0
-        _current_epoch = None
-
-        # Define file patterns to search for
-        chunk_pattern = "ss_epoch_*_all_chunk_sample_*.xlsx"
-        final_pattern = "ss_epoch_*_all_sample_*.xlsx"
-
-        # Find all matching files
-        existing_excel_files = glob.glob(chunk_pattern) + glob.glob(final_pattern)
-
-        # Print the list of existing files
-        if existing_excel_files:
-            print("\nFound the following log files:")
-            for i, f in enumerate(existing_excel_files, 1):
-                print(f"  {i}. {os.path.basename(f)}")
-            print(f"\nTotal files found: {len(existing_excel_files)}")
-        else:
-            print("\nNo existing log files found.")
-
-        # Check sampling mode and handle file deletion accordingly
-        if select_sampling:
-            print("\n Selected Sampling is ENABLED. Existing log files will be PRESERVED.")
-        else:
-            print("\n Selected Sampling is DISABLED. Existing log files will be DELETED.")
-
-            if existing_excel_files:
-                print("\nDeleting Excel files...")
-                deleted_count = 0
-                for f in existing_excel_files:
-                    try:
-                        os.remove(f)
-                        print(f"  - Deleted: {os.path.basename(f)}")
-                        deleted_count += 1
-                    except OSError as e:
-                        print(f"  - Error deleting {os.path.basename(f)}: {e}")
-                print(f"\nDeletion complete. Total files deleted: {deleted_count}")
-            else:
-                print("No files to delete.")
-
-        print("\nData recorder reset complete.")
-
 
 def save_gradients(model, sample_index, epoch, output_dir='gradients'):
     """
