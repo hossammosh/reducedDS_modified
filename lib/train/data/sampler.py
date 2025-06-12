@@ -114,7 +114,7 @@ class TrackingSampler(torch.utils.data.Dataset):
                 v = self.getitem()
             else:
                 v=self.getitem_selected( self.selected_sampling,self.row_index)
-        index=v[1]['index'][0]
+                index=v[1]['index'][0]
         return  (*v, index)
 
     def getitem_selected(self,  selected_sampling,row_index):

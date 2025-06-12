@@ -14,7 +14,7 @@ import copy
 import glob  # Import glob for file pattern matching
 
 # --- Configuration ---
-_chunk_size = 5  # Save every 10,000 samples
+_chunk_size = 10                                                                       # Save every 10,000 samples
 _delete_chunks_after_merge = True  # Set to False to keep intermediate chunk files
 select_sampling = False
 # --- Global State (Protected by Lock) ---

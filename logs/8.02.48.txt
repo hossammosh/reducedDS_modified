@@ -1,8 +1,0 @@
-[train: 1, 350 / 3750] FPS: 0.1 (0.4)  ,  Loss/total: 4.50970  ,  IoU: 0.87328
-[train: 1, 400 / 3750] FPS: 0.1 (0.4)  ,  Loss/total: 4.51403  ,  IoU: 0.87390
-[train: 1, 450 / 3750] FPS: 0.1 (0.4)  ,  Loss/total: 4.51752  ,  IoU: 0.87403   9.09
-
-[train: 1, 350 / 3750] FPS: 0.1 (0.4)  ,  Loss/total: 4.50970  ,  IoU: 0.87328
-[train: 1, 400 / 3750] FPS: 0.1 (0.4)  ,  Loss/total: 4.51403  ,  IoU: 0.87390
-[train: 1, 450 / 3750] FPS: 0.1 (0.4)  ,  Loss/total: 4.51752  ,  IoU: 0.87403
-[train: 1, 500 / 3750] FPS: 0.1 (0.4)  ,  Loss/total: 4.51592  ,  IoU: 0.87435   ‏‎9:42:44 
