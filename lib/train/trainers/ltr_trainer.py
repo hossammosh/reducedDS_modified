@@ -13,7 +13,8 @@ import lib.train.data_recorder as data_recorder
 
 
 class LTRTrainer(BaseTrainer):
-    def __init__(self, actor, loaders, optimizer, settings, lr_scheduler=None, use_amp=False, log_save=False):
+    #def __init__(self, actor, loaders, optimizer, settings, lr_scheduler=None, use_amp=False, log_save=False):
+    def __init__(self, actor, loaders, optimizer, settings, lr_scheduler=None, use_amp=False):
         """
         args:
             actor - The actor for training the network
@@ -23,7 +24,6 @@ class LTRTrainer(BaseTrainer):
             settings - Training settings
             lr_scheduler - Learning rate scheduler
             use_amp - Use Automatic Mixed Precision for faster training if True
-            log_save - Whether to save data to data_recorder (default: False)
         """
         super().__init__(actor, loaders, optimizer, settings, lr_scheduler)
 
@@ -57,7 +57,7 @@ class LTRTrainer(BaseTrainer):
         # ----- NEW: Initialize iteration counter for Excel logging frequency -----
         self.iteration_counter = 0
         data_recorder.set_sampling(settings.selected_sampling)
-        self.log_save = log_save
+        #self.log_save = log_save
 
     def cycle_dataset(self, loader):
         """Do a cycle of training or validation."""
@@ -83,7 +83,12 @@ class LTRTrainer(BaseTrainer):
         # Initialize timing
         self.last_time_print = time.time()
         self.iteration_counter = 0
+        if(self.settings.selected_sampling):
+            r=.5
+        else:
+            r=1
 
+        samples_limit=r*len(loader)
         for i, data in enumerate(loader, 1):
             self.iteration_counter += 1
 
@@ -130,6 +135,8 @@ class LTRTrainer(BaseTrainer):
 
             # Print statistics
             self._print_stats(i, loader, batch_size)
+            if (i >= samples_limit): break
+
 
     def train_epoch(self):
         for loader in self.loaders:

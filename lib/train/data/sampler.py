@@ -46,7 +46,7 @@ class TrackingSampler(torch.utils.data.Dataset):
 
         # If selected_sampling is True, load the Excel file with the correct epoch
         if self.selected_sampling:
-            settings.selected_sampling_epoch=2
+            #settings.selected_sampling_epoch=2
             excel_filename = data_recorder._get_final_filename_unselected(settings.selected_sampling_epoch, settings.sample_per_epoch)
             self.excel_data = pd.read_excel(excel_filename)
             print(f"Loaded Excel file: {excel_filename} with {len(self.excel_data)} rows")
@@ -65,7 +65,7 @@ class TrackingSampler(torch.utils.data.Dataset):
         self.num_template_frames = num_template_frames
         self.processing = processing
         self.frame_sample_mode = frame_sample_mode
-        #data_info={}
+        self.row_index = -1
 
     def __len__(self):
         return self.samples_per_epoch
@@ -106,39 +106,25 @@ class TrackingSampler(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         #breakpoint()
-        #print("index =  ",index)
+        self.row_index += 1
         if self.train_cls:
             return self.getitem_cls()
         else:
             if (self.selected_sampling==False):
                 v = self.getitem()
             else:
-                v=self.getitem_selected(index, self.selected_sampling)
-
+                v=self.getitem_selected( self.selected_sampling,self.row_index)
+        index=v[1]['index'][0]
         return  (*v, index)
 
-    def getitem_selected(self, index, selected_sampling):
-        """
-        Get item using selected sampling from the Excel file.
+    def getitem_selected(self,  selected_sampling,row_index):
 
-        Args:
-            index: Index of the item to retrieve
-            selected_sampling: Whether to use selected sampling
-
-        Returns:
-            Tuple of (data, data_info) where:
-            - data: TensorDict containing the data
-            - data_info: Dictionary with metadata about the sequence
-        """
         if selected_sampling and hasattr(self, 'excel_data') and not self.excel_data.empty:
             # Find the row where 'Sample Index' matches the provided index
-            matched_row = self.excel_data[self.excel_data['Sample Index'] == index]
-
-            if not matched_row.empty:
-                # Get the first match (should be only one match)
-                row = matched_row.iloc[0]
-
-
+            row = self.excel_data.iloc[row_index]
+            #row=matched_row
+            if not row.empty:
+                #row = matched_row.iloc[0]
                 # Extract template frame information
                 template_ids = [int(x) for x in str(row.get('Template Frame ID', '0')).split(',') if x.strip().isdigit()]
                 template_names = [f"{tid:09d}.jpg" for tid in template_ids]
@@ -152,7 +138,7 @@ class TrackingSampler(torch.utils.data.Dataset):
                 # Extract sequence information
                 seq_name = row.get('Seq Name', '')
                 seq_path = row.get('Seq Path', '')
-                
+                index=row.get('Index', '')
                 # Build the data_info dictionary
                 data_info = {
                     'seq_id': int(row.get('Seq ID', 0)),
@@ -165,7 +151,8 @@ class TrackingSampler(torch.utils.data.Dataset):
                     'template_path': template_paths,
                     'search_id': search_id,
                     'search_names': [search_name],
-                    'search_path': [search_path]
+                    'search_path': [search_path],
+                    'index': [index]
                 }
                 dataset = None
                 for d in self.datasets:
@@ -210,14 +197,14 @@ class TrackingSampler(torch.utils.data.Dataset):
                     data = self.processing(data)
                     # Check if data is valid
                     if not data['valid']:
-                        print(f"Warning: Invalid data for index {index}, falling back to standard sampling")
+                        print(f"Warning: Invalid data for row_index {row_index}, falling back to standard sampling")
                         return self.getitem()
                     return data, data_info
                 except Exception as e:
-                    print(f"Error in getitem_selected for index {index}: {str(e)}")
+                    print(f"Error in getitem_selected for row_index {row_index}: {str(e)}")
                     return self.getitem()  # Fall back to standard sampling
         
-        # If we get here, either selected_sampling is False or we couldn't find the index in the Excel file
+        # If we get here, either selected_sampling is False or we couldn't find the row_index in the Excel file
         return self.getitem()  # Fall back to standard sampling
 
     def getitem(self):
