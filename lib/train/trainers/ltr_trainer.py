@@ -73,9 +73,9 @@ class LTRTrainer(BaseTrainer):
         #current_epoch_idx = self.epoch - 1  # Convert to 0-based index
         data_recorder.set_epoch(self.epoch,settings=self.settings)
 
-        save_stats_permission = not (self.settings.selected_sampling and self.epoch == 2)
-        print(f"  - samples_stats_save_permission  at this epoch= {save_stats_permission}")
-        print(f"  - save_gradients at this epoch= {save_stats_permission}")
+        #save_stats_permission = not (self.settings.selected_sampling and self.epoch == 2)
+        # print(f"  - samples_stats_save_permission  at this epoch= {save_stats_permission}")
+        # print(f"  - save_gradients at this epoch= {save_stats_permission}")
         # Initialize timing
         self.last_time_print = time.time()
         self.iteration_counter = 0
@@ -103,19 +103,19 @@ class LTRTrainer(BaseTrainer):
 
             # Forward pass
             loss, stats = self.actor(data)
-            if save_stats_permission:
-                try:
-                    data_recorder.samples_stats_save(
-                        sample_index=sample_index,
-                        data_info=data_info,
-                        stats=stats
-                    )
-                    #print(f"Sample statistics saved at iteration {self.iteration_counter}")
-                except Exception as e:
-                    print(f"Error saving sample statistics: {e}")
+            # if save_stats_permission:
+            try:
+                data_recorder.samples_stats_save(
+                    sample_index=sample_index,
+                    data_info=data_info,
+                    stats=stats
+                )
+                # print(f"Sample statistics saved at iteration {self.iteration_counter}")
+            except Exception as e:
+                print(f"Error saving sample statistics: {e}")
 
             # Backward pass and parameter updates (only if not in stats saving mode)
-            if loader.training and not save_stats_permission:
+            if loader.training : #and not save_stats_permission
                 self.optimizer.zero_grad()
                 if not self.use_amp:
                     loss.backward()
