@@ -11,7 +11,6 @@ from torch.cuda.amp import GradScaler
 import lib.utils.misc as misc
 import lib.train.data_recorder as data_recorder
 
-
 class LTRTrainer(BaseTrainer):
     #def __init__(self, actor, loaders, optimizer, settings, lr_scheduler=None, use_amp=False, log_save=False):
     def __init__(self, actor, loaders, optimizer, settings, lr_scheduler=None, use_amp=False):
