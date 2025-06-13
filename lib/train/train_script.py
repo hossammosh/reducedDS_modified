@@ -91,7 +91,9 @@ def run(settings):
     trainer = LTRTrainer(actor, [loader_train], optimizer, settings, lr_scheduler, use_amp=use_amp)
 
     # train process
-    if settings.selected_sampling==True:
-       trainer.train(cfg.TRAIN.EPOCH, load_latest=True, fail_safe=True)
-    else:
-        trainer.train(cfg.TRAIN.EPOCH, load_latest=False, fail_safe=True)
+    trainer.train(cfg.TRAIN.EPOCH, load_latest=False, fail_safe=True)
+
+    # if settings.selected_sampling==True:
+    #    trainer.train(cfg.TRAIN.EPOCH, load_latest=True, fail_safe=True)
+    # else:
+    #     trainer.train(cfg.TRAIN.EPOCH, load_latest=False, fail_safe=True)

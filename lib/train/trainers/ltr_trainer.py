@@ -60,7 +60,7 @@ class LTRTrainer(BaseTrainer):
 
     def cycle_dataset(self, loader):
         """Do a cycle of training or validation."""
-        print('start tracking...')
+        print('start training...')
         self.actor.train(loader.training)
         torch.set_grad_enabled(loader.training)
         self._init_timing()
@@ -77,12 +77,12 @@ class LTRTrainer(BaseTrainer):
         # Initialize timing
         self.last_time_print = time.time()
         self.iteration_counter = 0
-        if(self.settings.selected_sampling):
+        if(self.settings.selected_sampling and self.settings.selected_sampling_epoch==self.epoch):
             self.settings.top_sample_ratio=.3
         else:
             self.settings.top_sample_ratio=1
+        self.settings.top_sample_samples =self.settings.top_sample_ratio*len(loader)
 
-        self.samples_limit=self.settings.top_sample_ratio*len(loader)
         for i, data in enumerate(loader, 1):
             self.settings.top_sample_samples=self.settings.top_sample_ratio*len(loader)
 
