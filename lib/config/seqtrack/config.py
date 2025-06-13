@@ -50,6 +50,7 @@ cfg.TRAIN.selected_sampling=False
 cfg.TRAIN.selected_sampling_epoch=2
 cfg.TRAIN.top_sample_ratio=.5
 cfg.TRAIN.top_sample_samples=10
+cfg.TRAIN.current_epoch=0
 
 # DATA
 cfg.DATA = edict()

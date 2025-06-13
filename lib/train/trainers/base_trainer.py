@@ -85,10 +85,10 @@ class BaseTrainer:
                     #     print("selected sampling will be active now")
                     #     self.loaders[0].sampler.load_selected_samples()
                     #     #loader.sampler.load_selected_samples()
-                    if (self.settings.selected_sampling and self.settings.selected_sampling_epoch == self.epoch):
+                    self.settings.current_epoch = epoch
+                    if (self.settings.selected_sampling and self.settings.selected_sampling_epoch == epoch):
                         self.settings.top_sample_ratio = .3
-                         sampler.load_selected_samples()
-
+                        self.loaders[0].sampler.load_selected_samples()
                     init_seeds(42)
                     self.epoch = epoch
 

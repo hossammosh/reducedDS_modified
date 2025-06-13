@@ -61,7 +61,7 @@ TRAIN:
   selected_sampling_epoch: 2
   top_sample_ratio: .5
   top_sample_samples: 10
-# Epoch from which to start selected sampling
+  current_epoch: 0
 TEST:
   EPOCH: 1
   SEARCH_FACTOR: 4.0

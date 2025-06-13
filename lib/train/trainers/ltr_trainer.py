@@ -193,7 +193,7 @@ class LTRTrainer(BaseTrainer):
         ss_print_interval = self.settings.ss_print_interval
 
         # Then use it in the conditional check
-        if i % ss_print_interval == 0 or i == loader.__len__() or i == self.samples_limit:
+        if i % ss_print_interval == 0 or i == loader.__len__() or i == self.settings.top_sample_samples:
             # Format time in days, hours, minutes, seconds with fixed width
             def format_time(seconds):
                 days = int(seconds // (24 * 3600))

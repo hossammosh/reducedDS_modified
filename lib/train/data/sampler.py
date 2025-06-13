@@ -42,6 +42,7 @@ class TrackingSampler(torch.utils.data.Dataset):
         self.pos_prob = pos_prob  # probability of sampling positive class when making classification
         self.selected_sampling = settings.selected_sampling
         self.selected_sampling_epoch = settings.selected_sampling_epoch
+        self.settings = settings
 
         def load_selected_samples():
             if self.settings.selected_sampling:
@@ -120,11 +121,12 @@ class TrackingSampler(torch.utils.data.Dataset):
         if self.train_cls:
             return self.getitem_cls()
         else:
-            if (self.selected_sampling==False):
-                v = self.getitem()
+            if(self.selected_sampling and self.settings.selected_sampling_epoch<=self.settings.current_epoch):
+                v = self.getitem_selected(self.selected_sampling, self.row_index)
+                index = v[1]['index'][0]
             else:
-                v=self.getitem_selected( self.selected_sampling,self.row_index)
-                index=v[1]['index'][0]
+                v = self.getitem()
+
         return  (*v, index)
 
     def getitem_selected(self,  selected_sampling,row_index):

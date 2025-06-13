@@ -35,6 +35,7 @@ def update_settings(settings, cfg):
     settings.sample_per_epoch = getattr(cfg.DATA.TRAIN, "SAMPLE_PER_EPOCH")
     settings.top_sample_ratio = getattr(cfg.TRAIN, "top_sample_ratio")
     settings.top_sample_samples = getattr(cfg.TRAIN, "top_sample_samples")
+    settings.current_epoch = getattr(cfg.TRAIN, "current_epoch")
 
 
 def names2datasets(name_list: list, settings, image_loader):
