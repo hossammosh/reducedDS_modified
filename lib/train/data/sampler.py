@@ -43,14 +43,23 @@ class TrackingSampler(torch.utils.data.Dataset):
         self.selected_sampling = settings.selected_sampling
         self.selected_sampling_epoch = settings.selected_sampling_epoch
 
-        if self.selected_sampling:
-            #top_sample_samples=settings.top_sample_samples
-            excel_filename = data_recorder._get_final_filename_unselected(settings.selected_sampling_epoch, settings.sample_per_epoch)
-            self.excel_data = pd.read_excel(excel_filename)
-            self.excel_data.sort_values(by=['stats/Loss_total', 'stats_IoU'], ascending=[False, True], inplace=True)
-            #settings.samples_limit = int(self.r*len(self.excel_data))
-            self.excel_data = self.excel_data['Sample Index'].head(settings.top_sample_samples).tolist()
-            print(f"Loaded Excel file: {excel_filename} with {len(self.excel_data)} top_sample_samples")
+        def load_selected_samples():
+            if self.settings.selected_sampling:
+                excel_filename = data_recorder._get_final_filename_unselected(
+                    self.settings.selected_sampling_epoch, self.settings.sample_per_epoch)
+                self.excel_data = pd.read_excel(excel_filename)
+                self.excel_data.sort_values(by=['stats/Loss_total', 'stats_IoU'], ascending=[False, True], inplace=True)
+                self.excel_data = self.excel_data['Sample Index'].head(self.settings.top_sample_samples).tolist()
+                print(f"Loaded Excel file: {excel_filename} with {len(self.excel_data)} top_sample_samples")
+
+        # if self.selected_sampling:
+        #     #top_sample_samples=settings.top_sample_samples
+        #     excel_filename = data_recorder._get_final_filename_unselected(settings.selected_sampling_epoch, settings.sample_per_epoch)
+        #     self.excel_data = pd.read_excel(excel_filename)
+        #     self.excel_data.sort_values(by=['stats/Loss_total', 'stats_IoU'], ascending=[False, True], inplace=True)
+        #     #settings.samples_limit = int(self.r*len(self.excel_data))
+        #     self.excel_data = self.excel_data['Sample Index'].head(settings.top_sample_samples).tolist()
+        #     print(f"Loaded Excel file: {excel_filename} with {len(self.excel_data)} top_sample_samples")
 
         # If p not provided, sample uniformly from all videos
         if p_datasets is None:

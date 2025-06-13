@@ -81,6 +81,10 @@ class BaseTrainer:
                     directory_teacher = '{}/{}'.format(self._checkpoint_dir, self.settings.project_path_teacher)
                     self.load_state_dict(directory_teacher, distill=True)
                 for epoch in range(self.epoch+1, max_epochs+1):
+                    if self.settings.selected_sampling and epoch == self.settings.selected_sampling_epoch:
+                        print("selected sampling will be active now")
+                        loader.sampler.load_selected_samples()
+
                     init_seeds(42)
                     self.epoch = epoch
 
