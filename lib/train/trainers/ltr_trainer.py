@@ -88,7 +88,7 @@ class LTRTrainer(BaseTrainer):
         else:
             r=1
 
-        samples_limit=r*len(loader)
+        self.samples_limit=r*len(loader)
         for i, data in enumerate(loader, 1):
             self.iteration_counter += 1
 
@@ -135,7 +135,7 @@ class LTRTrainer(BaseTrainer):
 
             # Print statistics
             self._print_stats(i, loader, batch_size)
-            if (i >= samples_limit): break
+            if (i >= self.samples_limit): break
 
 
     def train_epoch(self):
@@ -197,7 +197,7 @@ class LTRTrainer(BaseTrainer):
         ss_print_interval = self.settings.ss_print_interval
 
         # Then use it in the conditional check
-        if i % ss_print_interval == 0 or i == loader.__len__():
+        if i % ss_print_interval == 0 or i == loader.__len__() or i == self.samples_limit:
             # Format time in days, hours, minutes, seconds with fixed width
             def format_time(seconds):
                 days = int(seconds // (24 * 3600))
