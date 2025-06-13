@@ -70,13 +70,8 @@ class LTRTrainer(BaseTrainer):
         # Ensure sampling mode is properly set at the start of each epoch
         data_recorder.set_sampling(self.settings.selected_sampling)
         print(f"Selected sampling mode: {self.settings.selected_sampling}")
-        #current_epoch_idx = self.epoch - 1  # Convert to 0-based index
         data_recorder.set_epoch(self.epoch,settings=self.settings)
 
-        #save_stats_permission = not (self.settings.selected_sampling and self.epoch == 2)
-        # print(f"  - samples_stats_save_permission  at this epoch= {save_stats_permission}")
-        # print(f"  - save_gradients at this epoch= {save_stats_permission}")
-        # Initialize timing
         self.last_time_print = time.time()
         self.iteration_counter = 0
 
@@ -84,12 +79,14 @@ class LTRTrainer(BaseTrainer):
         self.last_time_print = time.time()
         self.iteration_counter = 0
         if(self.settings.selected_sampling):
-            r=.5
+            self.settings.top_sample_ratio=.3
         else:
-            r=1
+            self.settings.top_sample_ratio=1
 
-        self.samples_limit=r*len(loader)
+        self.samples_limit=self.settings.top_sample_ratio*len(loader)
         for i, data in enumerate(loader, 1):
+            self.settings.top_sample_samples=self.settings.top_sample_ratio*len(loader)
+
             self.iteration_counter += 1
 
             data_info = data[1]
@@ -135,7 +132,7 @@ class LTRTrainer(BaseTrainer):
 
             # Print statistics
             self._print_stats(i, loader, batch_size)
-            if (i >= self.samples_limit): break
+            if (i >= self.settings.top_sample_samples): break
 
 
     def train_epoch(self):

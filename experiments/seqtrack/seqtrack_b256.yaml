@@ -58,7 +58,10 @@ TRAIN:
   ss_print_interval: 20
   checkpoint_save_interval: 1               # Number of epochs between checkpoints
   selected_sampling: true                   # Whether to use selected sampling
-  selected_sampling_epoch: 3            # Epoch from which to start selected sampling
+  selected_sampling_epoch: 3
+  top_sample_ratio: .5
+  top_sample_samples: 10
+# Epoch from which to start selected sampling
 TEST:
   EPOCH: 1
   SEARCH_FACTOR: 4.0
