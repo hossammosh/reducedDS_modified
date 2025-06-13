@@ -88,7 +88,9 @@ class BaseTrainer:
                     self.settings.current_epoch = epoch
                     if (self.settings.selected_sampling and self.settings.selected_sampling_epoch == epoch):
                         self.settings.top_sample_ratio = .3
-                        self.loaders[0].sampler.load_selected_samples()
+                        self.loaders[0].dataset.load_selected_samples()
+                        print("tt")
+                        #self.loaders[0].sampler.load_selected_samples()
                     init_seeds(42)
                     self.epoch = epoch
 
