@@ -35,9 +35,6 @@ def run(settings):
     # update settings based on cfg
     update_settings(settings, cfg)
     data_recorder.set_sampling(settings.selected_sampling)
-    # data_recorder.set_epoch(1)
-
-    # Record the training log
     log_dir = os.path.join(settings.save_dir, 'logs')
     if settings.local_rank in [-1, 0]:
         if not os.path.exists(log_dir):
@@ -53,7 +50,7 @@ def run(settings):
 
     # Create network
     if settings.script_name == "seqtrack":
-        net = build_seqtrack(cfg)  # pix2seq method with multi-frames and encoder mask
+        net = build_seqtrack(cfg)
     else:
         raise ValueError("illegal script name")
 
@@ -84,16 +81,5 @@ def run(settings):
     optimizer, lr_scheduler = get_optimizer_scheduler(net, cfg)
     use_amp = getattr(cfg.TRAIN, "AMP", False)
 
-    # Add log_save parameter from config, default is False
-    #log_save = getattr(cfg.TRAIN, "LOG_SAVE", False)
-
-    #trainer = LTRTrainer(actor, [loader_train], optimizer, settings, lr_scheduler, use_amp=use_amp, log_save=log_save)
     trainer = LTRTrainer(actor, [loader_train], optimizer, settings, lr_scheduler, use_amp=use_amp)
-
-    # train process
     trainer.train(cfg.TRAIN.EPOCH, load_latest=False, fail_safe=True)
-
-    # if settings.selected_sampling==True:
-    #    trainer.train(cfg.TRAIN.EPOCH, load_latest=True, fail_safe=True)
-    # else:
-    #     trainer.train(cfg.TRAIN.EPOCH, load_latest=False, fail_safe=True)

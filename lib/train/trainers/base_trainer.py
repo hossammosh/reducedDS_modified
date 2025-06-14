@@ -72,7 +72,6 @@ class BaseTrainer:
         for i in range(num_tries):
             try:
                 if load_latest:
-                    #self.load_checkpoint()
                     self.load_checkpoint(self.settings.selected_sampling_epoch)
                 if load_previous_ckpt:
                     directory = '{}/{}'.format(self._checkpoint_dir, self.settings.project_path_prv)
@@ -81,27 +80,26 @@ class BaseTrainer:
                     directory_teacher = '{}/{}'.format(self._checkpoint_dir, self.settings.project_path_teacher)
                     self.load_state_dict(directory_teacher, distill=True)
                 for epoch in range(self.epoch+1, max_epochs+1):
-                    # if self.settings.selected_sampling and epoch == self.settings.selected_sampling_epoch:
-                    #     print("selected sampling will be active now")
-                    #     self.loaders[0].sampler.load_selected_samples()
-                    #     #loader.sampler.load_selected_samples()
                     self.settings.current_epoch = epoch
+
                     if (self.settings.selected_sampling and self.settings.selected_sampling_epoch == epoch):
-                        self.settings.top_sample_ratio = .3
+                        print("switchign to selected samples mode")
+                        if (self.settings.selected_sampling and self.settings.selected_sampling_epoch == epoch):
+                            self.settings.top_sample_ratio = .3
+                        else:
+                            self.settings.top_sample_ratio = 1
+                        self.settings.top_selected_samples = self.settings.top_sample_ratio * len(loader)
                         self.loaders[0].dataset.load_selected_samples()
-                        print("tt")
-                        #self.loaders[0].sampler.load_selected_samples()
+
                     init_seeds(42)
                     self.epoch = epoch
-
+                    print('epoch no.= ', self.epoch, " at base trainer epoch loop")
                     self.train_epoch()
-
                     if self.lr_scheduler is not None:
                         if self.settings.scheduler_type != 'cosine':
                             self.lr_scheduler.step()
                         else:
                             self.lr_scheduler.step(epoch - 1)
-                    # only save the last 10 checkpoints
                     checkpoint_save_interval  = self.settings.checkpoint_save_interval
                     if epoch % checkpoint_save_interval == 0 or (epoch == max_epochs and max_epochs % checkpoint_save_interval != 0):
                         if self._checkpoint_dir:
@@ -117,7 +115,6 @@ class BaseTrainer:
                     print('Restarting training from last epoch ...')
                 else:
                     raise
-
         print('base trainer  Finished training!')
 
     def train_epoch(self):
@@ -202,9 +199,6 @@ class BaseTrainer:
 
         # Load network
         checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
-
-        #assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
-
         if fields is None:
             fields = checkpoint_dict.keys()
         if ignore_fields is None:
@@ -274,9 +268,6 @@ class BaseTrainer:
         # Load network
         print("Loading pretrained model from ", checkpoint_path)
         checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
-        #chenxin temporarily shut down chenxin
-        # assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
-
         missing_k, unexpected_k = net.load_state_dict(checkpoint_dict["net"], strict=False)
         print("previous checkpoint is loaded.")
         print("missing keys: ", missing_k)

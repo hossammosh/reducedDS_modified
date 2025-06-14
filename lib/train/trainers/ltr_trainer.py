@@ -5,8 +5,6 @@ from lib.train.admin import AverageMeter, StatValue
 from lib.train.admin import TensorboardWriter
 import torch
 import time
-from torch.utils.data.distributed import DistributedSampler
-from torch.cuda.amp import autocast
 from torch.cuda.amp import GradScaler
 import lib.utils.misc as misc
 import lib.train.data_recorder as data_recorder
@@ -28,7 +26,6 @@ class LTRTrainer(BaseTrainer):
 
         # Initialize statistics variables
         self.stats = OrderedDict({loader.name: None for loader in self.loaders})
-
         # Initialize tensorboard
         if settings.local_rank in [-1, 0]:
             tensorboard_writer_dir = os.path.join(self.settings.env.tensorboard_dir, self.settings.project_path)
@@ -56,38 +53,26 @@ class LTRTrainer(BaseTrainer):
         # ----- NEW: Initialize iteration counter for Excel logging frequency -----
         self.iteration_counter = 0
         data_recorder.set_sampling(settings.selected_sampling)
-        #self.log_save = log_save
-
     def cycle_dataset(self, loader):
         """Do a cycle of training or validation."""
         print('start training...')
         self.actor.train(loader.training)
         torch.set_grad_enabled(loader.training)
         self._init_timing()
-        print('epoch no.= ', self.epoch)
-
         # Ensure sampling mode is properly set at the start of each epoch
         data_recorder.set_sampling(self.settings.selected_sampling)
-        print(f"Selected sampling mode: {self.settings.selected_sampling}")
         data_recorder.set_epoch(self.epoch,settings=self.settings)
-
         self.last_time_print = time.time()
-        self.iteration_counter = 0
-
         # Initialize timing
-        self.last_time_print = time.time()
         self.iteration_counter = 0
-        if(self.settings.selected_sampling and self.settings.selected_sampling_epoch==self.epoch):
-            self.settings.top_sample_ratio=.3
-        else:
-            self.settings.top_sample_ratio=1
-        self.settings.top_sample_samples =self.settings.top_sample_ratio*len(loader)
+        # if(self.settings.selected_sampling and self.settings.selected_sampling_epoch==self.epoch):
+        #     self.settings.top_sample_ratio=.3
+        # else:
+        #     self.settings.top_sample_ratio=1
+        # self.settings.top_selected_samples =self.settings.top_sample_ratio*len(loader)
 
         for i, data in enumerate(loader, 1):
-            self.settings.top_sample_samples=self.settings.top_sample_ratio*len(loader)
-
             self.iteration_counter += 1
-
             data_info = data[1]
             sample_index = data[2]
             data = data[0]
@@ -99,14 +84,12 @@ class LTRTrainer(BaseTrainer):
 
             # Forward pass
             loss, stats = self.actor(data)
-            # if save_stats_permission:
             try:
                 data_recorder.samples_stats_save(
                     sample_index=sample_index,
                     data_info=data_info,
                     stats=stats
                 )
-                # print(f"Sample statistics saved at iteration {self.iteration_counter}")
             except Exception as e:
                 print(f"Error saving sample statistics: {e}")
 
@@ -131,7 +114,7 @@ class LTRTrainer(BaseTrainer):
 
             # Print statistics
             self._print_stats(i, loader, batch_size)
-            if (i >= self.settings.top_sample_samples): break
+            if (i >= self.settings.top_selected_samples): break
 
 
     def train_epoch(self):
@@ -193,7 +176,7 @@ class LTRTrainer(BaseTrainer):
         ss_print_interval = self.settings.ss_print_interval
 
         # Then use it in the conditional check
-        if i % ss_print_interval == 0 or i == loader.__len__() or i == self.settings.top_sample_samples:
+        if i % ss_print_interval == 0 or i == loader.__len__() or i == self.settings.top_selected_samples:
             # Format time in days, hours, minutes, seconds with fixed width
             def format_time(seconds):
                 days = int(seconds // (24 * 3600))
@@ -301,9 +284,7 @@ class LTRTrainer(BaseTrainer):
     def _write_tensorboard(self):
         if self.epoch == 1:
             self.tensorboard_writer.write_info(self.settings.script_name, self.settings.description)
-
         self.tensorboard_writer.write_epoch(self.stats, self.epoch)
-
         if self.epoch <= 10:
             checkpoint_path = os.path.join(self.checkpoint_dir, f"checkpoint_epoch_{self.epoch}.pt")
             print(f"--- ltr_trainer: Attempting to save checkpoint for epoch {self.epoch} to {checkpoint_path} ---")

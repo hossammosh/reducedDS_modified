@@ -2,7 +2,6 @@ import torch
 import torch.utils.data.dataloader
 import importlib
 import collections
-#from torch._six import string_classes
 string_classes = (str, bytes)
 int_classes = int
 from lib.utils import TensorDict, TensorList
@@ -28,9 +27,6 @@ def ltr_collate(batch):
             storage = batch[0].storage()._new_shared(numel)
             out = batch[0].new(storage)
         return torch.stack(batch, 0, out=out)
-        # if batch[0].dim() < 4:
-        #     return torch.stack(batch, 0, out=out)
-        # return torch.cat(batch, 0, out=out)
     elif elem_type.__module__ == 'numpy' and elem_type.__name__ != 'str_' \
             and elem_type.__name__ != 'string_':
         elem = batch[0]
@@ -66,7 +62,6 @@ def ltr_collate(batch):
 
 def ltr_collate_stack1(batch):
     #breakpoint()
-    #print('ltr_collate_stack1 batch = ')
     if isinstance(batch[0], tuple) and len(batch[0]) == 3:
         new_batch=batch[0][0]
         data_info=batch[0][1]
@@ -161,7 +156,6 @@ class LTRLoader(torch.utils.data.dataloader.DataLoader):
               use ``torch.initial_seed()`` to access the PyTorch seed for each
               worker in :attr:`worker_init_fn`, and use it to set other seeds
               before data loading.
-
     .. warning:: If ``spawn`` start method is used, :attr:`worker_init_fn` cannot be an
                  unpicklable object, e.g., a lambda function.
     """

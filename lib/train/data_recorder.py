@@ -4,13 +4,13 @@ import os
 import pandas as pd
 import threading
 import time
-import random
+#import random
 import h5py
-import numpy as np
-import torch
+#import numpy as np
+#import torch
 from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
-import copy
+#import copy
 import glob  # Import glob for file pattern matching
 
 # --- Configuration ---
@@ -25,19 +25,18 @@ _total_samples_logged_this_epoch = 0
 _current_epoch = None
 _file_lock = threading.RLock()
 sample_per_epoch=0
+selected_sampling_epoch=0
 # Define headers based on the original structure
 _headers = [
     "Index", "Sample Index", "stats/Loss_total", "stats_IoU", "Seq Name",
     "Template Frame ID", "Template Frame Path", "Search Frame ID", "Seq ID",
     "Seq Path", "Class Name", "Vid ID", "Search Names", "Search Path"
 ]
-
-
 # --- Filename Generation ---
 def _get_chunk_filename(epoch, start_index, end_index):
     # Save in the root directory where the script is run
-    global select_sampling
-    if select_sampling:
+    global select_sampling,selected_sampling_epoch
+    if select_sampling and selected_sampling_epoch==epoch:
         return f'sample_stats_epoch_{epoch}_all_selected_chunk_sample_{start_index}_{end_index}.xlsx'
     else:
         return f'sample_stats_epoch_{epoch}_all_chunk_sample_{start_index}_{end_index}.xlsx'
@@ -45,7 +44,7 @@ def _get_chunk_filename(epoch, start_index, end_index):
 def _get_final_filename(epoch, total_samples):
     # Save in the root directory where the script is run
     global select_sampling
-    if select_sampling:
+    if select_sampling and selected_sampling_epoch==epoch:
         return f'sample_stats_epoch_{epoch}_all_selected_sample_1_{total_samples}.xlsx'
     else:
         return f'sample_stats_epoch_{epoch}_all_sample_1_{total_samples}.xlsx'
@@ -241,7 +240,7 @@ def set_epoch(epoch_number, settings):
     Sets the current epoch, clearing buffers and state for the new epoch.
     If epoch_number is 1, also cleans up any previous experiment files.
     """
-    global _current_epoch, _buffer, _samples_in_buffer, _chunk_files, _total_samples_logged_this_epoch,sample_per_epoch
+    global _current_epoch, _buffer, _samples_in_buffer, _chunk_files, _total_samples_logged_this_epoch,sample_per_epoch,selected_sampling_epoch
     
     with _file_lock:
         # Clean up previous experiments if this is the first epoch or if we're reinitializing
@@ -255,6 +254,7 @@ def set_epoch(epoch_number, settings):
         _samples_in_buffer = 0
         _chunk_files = []
         _total_samples_logged_this_epoch = 0
+        selected_sampling_epoch=settings.selected_sampling_epoch
 
 
 def samples_stats_save(sample_index: int, data_info: dict, stats: dict):

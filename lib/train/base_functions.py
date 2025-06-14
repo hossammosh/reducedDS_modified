@@ -9,7 +9,6 @@ from lib.utils.misc import is_main_process
 
 
 def update_settings(settings, cfg):
-    #settings.print_interval = cfg.TRAIN.PRINT_INTERVAL
     settings.search_area_factor = {'template': getattr(cfg.DATA.TEMPLATE, "FACTOR", None),
                                    'search': getattr(cfg.DATA.SEARCH, "FACTOR", None)}
     settings.output_sz = {'template': getattr(cfg.DATA.TEMPLATE, "SIZE", 128),
@@ -25,8 +24,6 @@ def update_settings(settings, cfg):
 
     # ADD THESE TWO LINES:
     settings.ss_print_interval = getattr(cfg.TRAIN, "ss_print_interval")
-    #settings.ss_permission = getattr(cfg.TRAIN, "samples_stats_save_permission")
-    #settings.save_gradients = getattr(cfg.TRAIN, "save_gradients")
     settings.checkpoint_save_interval = getattr(cfg.TRAIN, "checkpoint_save_interval")
     settings.selected_sampling = getattr(cfg.TRAIN, "selected_sampling", False)
     settings.selected_sampling_epoch = getattr(cfg.TRAIN, "selected_sampling_epoch")
@@ -34,9 +31,8 @@ def update_settings(settings, cfg):
     settings.max_epochs = getattr(cfg.TRAIN, "EPOCH")  # Default to 300 if not specified
     settings.sample_per_epoch = getattr(cfg.DATA.TRAIN, "SAMPLE_PER_EPOCH")
     settings.top_sample_ratio = getattr(cfg.TRAIN, "top_sample_ratio")
-    settings.top_sample_samples = getattr(cfg.TRAIN, "top_sample_samples")
+    settings.top_selected_samples = getattr(cfg.TRAIN, "top_selected_samples")
     settings.current_epoch = getattr(cfg.TRAIN, "current_epoch")
-
 
 def names2datasets(name_list: list, settings, image_loader):
     assert isinstance(name_list, list)
@@ -138,7 +134,6 @@ def build_dataloaders(cfg, settings):
     loader_train = LTRLoader('train', dataset_train, training=True, batch_size=cfg.TRAIN.BATCH_SIZE, shuffle=shuffle,
                              num_workers=cfg.TRAIN.NUM_WORKER, drop_last=True, stack_dim=1, sampler=train_sampler)
     return loader_train
-
 
 def get_optimizer_scheduler(net, cfg):
     param_dicts = [

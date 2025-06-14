@@ -4,13 +4,10 @@ import lib.train.data_recorder as data_recorder
 from lib.utils import TensorDict
 import numpy as np
 import pandas as pd
-import os
 def no_processing(data):
     return data
-
 class TrackingSampler(torch.utils.data.Dataset):
     """ Class responsible for sampling frames from training sequences to form batches.
-
     The sampling is done in the following ways. First a dataset is selected at random. Next, a sequence is selected
     from that dataset. A base frame is then sampled randomly from the sequence. Next, a set of 'train frames' and
     'test frames' are sampled from the sequence from the range [base_frame_id - max_gap, base_frame_id]  and
@@ -19,7 +16,6 @@ class TrackingSampler(torch.utils.data.Dataset):
 
     The sampled frames are then passed through the input 'processing' function for the necessary processing-
     """
-
     def __init__(self, datasets, p_datasets, samples_per_epoch, max_gap,
                  num_search_frames, num_template_frames=1, processing=no_processing, frame_sample_mode='causal',
                  train_cls=False, pos_prob=0.5,  settings=None):
@@ -43,33 +39,12 @@ class TrackingSampler(torch.utils.data.Dataset):
         self.selected_sampling = settings.selected_sampling
         self.selected_sampling_epoch = settings.selected_sampling_epoch
         self.settings = settings
-
-        def load_selected_samples():
-            if self.settings.selected_sampling:
-                excel_filename = data_recorder._get_final_filename_unselected(
-                    self.settings.selected_sampling_epoch, self.settings.sample_per_epoch)
-                self.excel_data = pd.read_excel(excel_filename)
-                self.excel_data.sort_values(by=['stats/Loss_total', 'stats_IoU'], ascending=[False, True], inplace=True)
-                self.excel_data = self.excel_data['Sample Index'].head(self.settings.top_sample_samples).tolist()
-                print(f"Loaded Excel file: {excel_filename} with {len(self.excel_data)} top_sample_samples")
-
-        # if self.selected_sampling:
-        #     #top_sample_samples=settings.top_sample_samples
-        #     excel_filename = data_recorder._get_final_filename_unselected(settings.selected_sampling_epoch, settings.sample_per_epoch)
-        #     self.excel_data = pd.read_excel(excel_filename)
-        #     self.excel_data.sort_values(by=['stats/Loss_total', 'stats_IoU'], ascending=[False, True], inplace=True)
-        #     #settings.samples_limit = int(self.r*len(self.excel_data))
-        #     self.excel_data = self.excel_data['Sample Index'].head(settings.top_sample_samples).tolist()
-        #     print(f"Loaded Excel file: {excel_filename} with {len(self.excel_data)} top_sample_samples")
-
-        # If p not provided, sample uniformly from all videos
         if p_datasets is None:
             p_datasets = [len(d) for d in self.datasets]
 
         # Normalize
         p_total = sum(p_datasets)
         self.p_datasets = [x / p_total for x in p_datasets]
-
         self.samples_per_epoch = samples_per_epoch
         self.max_gap = max_gap
         self.num_search_frames = num_search_frames
@@ -80,6 +55,15 @@ class TrackingSampler(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.samples_per_epoch
+
+    def load_selected_samples(self):
+        if self.settings.selected_sampling:
+            excel_filename = data_recorder._get_final_filename_unselected(self.settings.selected_sampling_epoch-1, self.settings.sample_per_epoch)
+            self.excel_data = pd.read_excel(excel_filename)
+            self.excel_data.sort_values(by=['stats/Loss_total', 'stats_IoU'], ascending=[False, True], inplace=True)
+            self.settings.top_selected_samples=self.settings.top_sample_ratio*len(self.excel_data)
+            self.excel_data = self.excel_data.iloc[1:self.settings.top_selected_samples]
+            print(f"Loaded Excel file: {excel_filename} with {len(self.excel_data)} top_selected_samples")
 
     def _sample_visible_ids(self, visible, num_ids=1, min_id=None, max_id=None,
                             allow_invisible=False, force_invisible=False):
@@ -114,7 +98,6 @@ class TrackingSampler(torch.utils.data.Dataset):
             return None
 
         return random.choices(valid_ids, k=num_ids)
-
     def __getitem__(self, index):
         #breakpoint()
         self.row_index += 1
@@ -130,23 +113,20 @@ class TrackingSampler(torch.utils.data.Dataset):
         return  (*v, index)
 
     def getitem_selected(self,  selected_sampling,row_index):
-
-        if selected_sampling and hasattr(self, 'excel_data') and not self.excel_data.empty:
+        breakpoint()
+        if selected_sampling and hasattr(self, 'excel_data'):
             # Find the row where 'Sample Index' matches the provided index
             row = self.excel_data.iloc[row_index]
             #row=matched_row
             if not row.empty:
-                #row = matched_row.iloc[0]
-                # Extract template frame information
+
                 template_ids = [int(x) for x in str(row.get('Template Frame ID', '0')).split(',') if x.strip().isdigit()]
                 template_names = [f"{tid:09d}.jpg" for tid in template_ids]
                 template_paths = [f"{row.get('Template Frame Path', '').rsplit('/', 1)[0]}/{name}" for name in template_names]
-
                 # Extract search frame information
                 search_id = [int(row.get('Search Frame ID', 0))]
                 search_name = f"{search_id[0]:09d}.jpg"
                 search_path = f"{row.get('Search Path', '').rsplit('/', 1)[0]}/{search_name}" if row.get('Search Path') else ""
-
                 # Extract sequence information
                 seq_name = row.get('Seq Name', '')
                 seq_path = row.get('Seq Path', '')
@@ -215,10 +195,7 @@ class TrackingSampler(torch.utils.data.Dataset):
                 except Exception as e:
                     print(f"Error in getitem_selected for row_index {row_index}: {str(e)}")
                     return self.getitem()  # Fall back to standard sampling
-        
-        # If we get here, either selected_sampling is False or we couldn't find the row_index in the Excel file
         return self.getitem()  # Fall back to standard sampling
-
     def getitem(self):
         """
         returns:
@@ -317,8 +294,6 @@ class TrackingSampler(torch.utils.data.Dataset):
                 print(str(count_valid))
 
         return data, data_info
-
-
     def show(self, data, strr, i):
         image = data[strr+'_images'][i]
         _, H, W = image.shape
